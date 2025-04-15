@@ -1,59 +1,23 @@
-
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardFooter, 
-  CardHeader, 
-  CardTitle 
-} from '@/components/ui/card';
+import React from 'react';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ArrowLeft, ArrowRight, Check } from 'lucide-react';
-import { toast } from 'sonner';
 import CustomPreferences from '@/components/CustomPreferences';
+import StepProgressBar from '@/components/onboarding/StepProgressBar';
+import { useOnboarding } from '@/hooks/useOnboarding';
 
 const Onboarding = () => {
-  const navigate = useNavigate();
-  const [currentStep, setCurrentStep] = useState(0);
-  const [preferences, setPreferences] = useState({
-    workHours: '9-5',
-    deepWorkHours: '4',
-    personalActivities: [] as string[],
-    workoutTime: '',
-    meetingPreference: '',
-    meetingsPerDay: '',
-    autoReschedule: false,
-    customPreferences: ''
-  });
-
-  const handleInputChange = (field: string, value: string | boolean) => {
-    setPreferences(prev => {
-      if (field === 'autoReschedule') {
-        return { ...prev, [field]: !!value };
-      }
-      
-      return { ...prev, [field]: value };
-    });
-  };
-
-  const handleCheckboxChange = (field: string, value: string, checked: boolean | 'indeterminate') => {
-    if (checked === 'indeterminate') return;
-    
-    setPreferences(prev => {
-      const currentValues = [...prev[field as keyof typeof preferences]] as string[];
-      
-      if (checked) {
-        return { ...prev, [field]: [...currentValues, value] };
-      } else {
-        return { ...prev, [field]: currentValues.filter(v => v !== value) };
-      }
-    });
-  };
+  const {
+    currentStep,
+    preferences,
+    handleInputChange,
+    handleCheckboxChange,
+    handleNext,
+    handleBack
+  } = useOnboarding();
 
   const steps = [
     {
@@ -289,54 +253,13 @@ const Onboarding = () => {
     }
   ];
 
-  const handleNext = () => {
-    if (currentStep < steps.length - 1) {
-      setCurrentStep(currentStep + 1);
-    } else {
-      console.log('Preferences saved:', preferences);
-      toast.success('Preferences saved! Generating your schedule...');
-      navigate('/schedule');
-    }
-  };
-
-  const handleBack = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
-
   const currentStepData = steps[currentStep];
 
   return (
     <div className="max-w-2xl mx-auto py-6 animate-fade-in">
       <h2 className="text-3xl font-bold tracking-tight mb-6">Setup Your Preferences</h2>
       
-      <div className="mb-8">
-        <div className="flex items-center">
-          {steps.map((step, index) => (
-            <React.Fragment key={step.id}>
-              <div 
-                className={`flex items-center justify-center h-8 w-8 rounded-full ${
-                  index <= currentStep ? 'bg-primary text-primary-foreground' : 'bg-muted'
-                }`}
-              >
-                {index < currentStep ? (
-                  <Check className="h-4 w-4" />
-                ) : (
-                  <span>{index + 1}</span>
-                )}
-              </div>
-              {index < steps.length - 1 && (
-                <div 
-                  className={`h-1 w-full ${
-                    index < currentStep ? 'bg-primary' : 'bg-muted'
-                  }`}
-                />
-              )}
-            </React.Fragment>
-          ))}
-        </div>
-      </div>
+      <StepProgressBar steps={steps} currentStep={currentStep} />
       
       <Card className="schedule-card">
         <CardHeader>
@@ -344,7 +267,11 @@ const Onboarding = () => {
           <CardDescription>{currentStepData.description}</CardDescription>
         </CardHeader>
         <CardContent>
-          {currentStepData.content}
+          {React.cloneElement(currentStepData.content, {
+            preferences,
+            handleInputChange,
+            handleCheckboxChange
+          })}
         </CardContent>
         <CardFooter className="flex justify-between">
           <Button 
