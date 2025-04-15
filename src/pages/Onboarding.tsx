@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ArrowLeft, ArrowRight, Check } from 'lucide-react';
 import { toast } from 'sonner';
+import CustomPreferences from '@/components/CustomPreferences';
 
 const Onboarding = () => {
   const navigate = useNavigate();
@@ -25,8 +26,51 @@ const Onboarding = () => {
     workoutTime: '',
     meetingPreference: '',
     meetingsPerDay: '',
-    autoReschedule: false
+    autoReschedule: false,
+    customPreferences: ''
   });
+
+  const handleInputChange = (field: string, value: string | boolean) => {
+    setPreferences(prev => {
+      if (field === 'autoReschedule') {
+        return { ...prev, [field]: !!value };
+      }
+      
+      return { ...prev, [field]: value };
+    });
+  };
+
+  const handleCheckboxChange = (field: string, value: string, checked: boolean | 'indeterminate') => {
+    if (checked === 'indeterminate') return;
+    
+    setPreferences(prev => {
+      const currentValues = [...prev[field as keyof typeof preferences]] as string[];
+      
+      if (checked) {
+        return { ...prev, [field]: [...currentValues, value] };
+      } else {
+        return { ...prev, [field]: currentValues.filter(v => v !== value) };
+      }
+    });
+  };
+
+  const handleNext = () => {
+    if (currentStep < steps.length - 1) {
+      setCurrentStep(currentStep + 1);
+    } else {
+      console.log('Preferences saved:', preferences);
+      toast.success('Preferences saved! Generating your schedule...');
+      navigate('/schedule');
+    }
+  };
+
+  const handleBack = () => {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const currentStepData = steps[currentStep];
 
   const steps = [
     {
@@ -234,69 +278,33 @@ const Onboarding = () => {
       title: 'Would you like the AI to automatically reschedule tasks if priorities change?',
       description: 'Choose your preference for AI rescheduling',
       content: (
-        <RadioGroup
-          value={preferences.autoReschedule ? 'yes' : 'no'}
-          onValueChange={(value) => handleInputChange('autoReschedule', value === 'yes')}
-          className="grid grid-cols-1 gap-4"
-        >
-          <div className="flex items-center space-x-2 p-4 border rounded-md hover:bg-accent">
-            <RadioGroupItem value="yes" id="reschedule-yes" />
-            <Label htmlFor="reschedule-yes" className="flex items-center cursor-pointer">
-              <span className="mr-2">✅</span> Yes
-            </Label>
-          </div>
-          <div className="flex items-center space-x-2 p-4 border rounded-md hover:bg-accent">
-            <RadioGroupItem value="no" id="reschedule-no" />
-            <Label htmlFor="reschedule-no" className="flex items-center cursor-pointer">
-              <span className="mr-2">❌</span> No
-            </Label>
-          </div>
-        </RadioGroup>
+        <div className="space-y-6">
+          <RadioGroup
+            value={preferences.autoReschedule ? 'yes' : 'no'}
+            onValueChange={(value) => handleInputChange('autoReschedule', value === 'yes')}
+            className="grid grid-cols-1 gap-4 mb-6"
+          >
+            <div className="flex items-center space-x-2 p-4 border rounded-md hover:bg-accent">
+              <RadioGroupItem value="yes" id="reschedule-yes" />
+              <Label htmlFor="reschedule-yes" className="flex items-center cursor-pointer">
+                <span className="mr-2">✅</span> Yes
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2 p-4 border rounded-md hover:bg-accent">
+              <RadioGroupItem value="no" id="reschedule-no" />
+              <Label htmlFor="reschedule-no" className="flex items-center cursor-pointer">
+                <span className="mr-2">❌</span> No
+              </Label>
+            </div>
+          </RadioGroup>
+          <CustomPreferences 
+            value={preferences.customPreferences}
+            onChange={(value) => handleInputChange('customPreferences', value)}
+          />
+        </div>
       )
     }
   ];
-
-  const handleInputChange = (field: string, value: string | boolean) => {
-    setPreferences(prev => {
-      if (field === 'autoReschedule') {
-        return { ...prev, [field]: !!value };
-      }
-      
-      return { ...prev, [field]: value };
-    });
-  };
-
-  const handleCheckboxChange = (field: string, value: string, checked: boolean | 'indeterminate') => {
-    if (checked === 'indeterminate') return;
-    
-    setPreferences(prev => {
-      const currentValues = [...prev[field as keyof typeof preferences]] as string[];
-      
-      if (checked) {
-        return { ...prev, [field]: [...currentValues, value] };
-      } else {
-        return { ...prev, [field]: currentValues.filter(v => v !== value) };
-      }
-    });
-  };
-
-  const handleNext = () => {
-    if (currentStep < steps.length - 1) {
-      setCurrentStep(currentStep + 1);
-    } else {
-      console.log('Preferences saved:', preferences);
-      toast.success('Preferences saved! Generating your schedule...');
-      navigate('/schedule');
-    }
-  };
-
-  const handleBack = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
-
-  const currentStepData = steps[currentStep];
 
   return (
     <div className="max-w-2xl mx-auto py-6 animate-fade-in">
