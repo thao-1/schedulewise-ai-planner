@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -53,24 +54,6 @@ const Onboarding = () => {
       }
     });
   };
-
-  const handleNext = () => {
-    if (currentStep < steps.length - 1) {
-      setCurrentStep(currentStep + 1);
-    } else {
-      console.log('Preferences saved:', preferences);
-      toast.success('Preferences saved! Generating your schedule...');
-      navigate('/schedule');
-    }
-  };
-
-  const handleBack = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
-
-  const currentStepData = steps[currentStep];
 
   const steps = [
     {
@@ -305,6 +288,24 @@ const Onboarding = () => {
       )
     }
   ];
+
+  const handleNext = () => {
+    if (currentStep < steps.length - 1) {
+      setCurrentStep(currentStep + 1);
+    } else {
+      console.log('Preferences saved:', preferences);
+      toast.success('Preferences saved! Generating your schedule...');
+      navigate('/schedule');
+    }
+  };
+
+  const handleBack = () => {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const currentStepData = steps[currentStep];
 
   return (
     <div className="max-w-2xl mx-auto py-6 animate-fade-in">
