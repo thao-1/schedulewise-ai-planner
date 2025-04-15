@@ -3,6 +3,18 @@ import { useState } from 'react';
 import { Preferences, PreferencesKey } from '@/types/OnboardingTypes';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+
+// Define steps here to resolve the undefined error
+const steps = [
+  { id: 'work-hours' },
+  { id: 'deep-work' },
+  { id: 'personal-activities' },
+  { id: 'workout-time' },
+  { id: 'meeting-preference' },
+  { id: 'meetings-per-day' },
+  { id: 'auto-reschedule' }
+];
 
 export const useOnboarding = () => {
   const navigate = useNavigate();
@@ -65,6 +77,7 @@ export const useOnboarding = () => {
   return {
     currentStep,
     preferences,
+    steps, // Export steps to be used in the Onboarding component
     handleInputChange,
     handleCheckboxChange,
     handleNext,

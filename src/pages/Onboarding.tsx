@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -8,6 +8,8 @@ import { ArrowLeft, ArrowRight, Check } from 'lucide-react';
 import CustomPreferences from '@/components/CustomPreferences';
 import StepProgressBar from '@/components/onboarding/StepProgressBar';
 import { useOnboarding } from '@/hooks/useOnboarding';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 const Onboarding = () => {
   const {
@@ -18,6 +20,21 @@ const Onboarding = () => {
     handleNext,
     handleBack
   } = useOnboarding();
+
+  const handleGoogleSignIn = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin + '/onboarding'
+      }
+    });
+
+    if (error) {
+      toast.error('Google Sign-In failed', {
+        description: error.message
+      });
+    }
+  };
 
   const steps = [
     {
@@ -258,6 +275,18 @@ const Onboarding = () => {
   return (
     <div className="max-w-2xl mx-auto py-6 animate-fade-in">
       <h2 className="text-3xl font-bold tracking-tight mb-6">Setup Your Preferences</h2>
+      
+      <Card className="schedule-card mb-4">
+        <CardContent className="flex justify-center p-6">
+          <Button 
+            variant="outline" 
+            className="w-full max-w-md"
+            onClick={handleGoogleSignIn}
+          >
+            Sign in with Google
+          </Button>
+        </CardContent>
+      </Card>
       
       <StepProgressBar steps={steps} currentStep={currentStep} />
       
