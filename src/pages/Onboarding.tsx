@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -29,7 +28,6 @@ const Onboarding = () => {
     autoReschedule: false
   });
 
-  // Define the steps for the questionnaire
   const steps = [
     {
       id: 'work-hours',
@@ -258,12 +256,16 @@ const Onboarding = () => {
     }
   ];
 
-  // Handle input changes
   const handleInputChange = (field: string, value: string | boolean) => {
-    setPreferences(prev => ({ ...prev, [field]: value }));
+    setPreferences(prev => {
+      if (field === 'autoReschedule') {
+        return { ...prev, [field]: !!value };
+      }
+      
+      return { ...prev, [field]: value };
+    });
   };
 
-  // Handle checkbox changes for multi-select options
   const handleCheckboxChange = (field: string, value: string, checked: boolean | 'indeterminate') => {
     if (checked === 'indeterminate') return;
     
@@ -278,12 +280,10 @@ const Onboarding = () => {
     });
   };
 
-  // Handle navigation between steps
   const handleNext = () => {
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
-      // Save preferences and navigate to schedule
       console.log('Preferences saved:', preferences);
       toast.success('Preferences saved! Generating your schedule...');
       navigate('/schedule');
