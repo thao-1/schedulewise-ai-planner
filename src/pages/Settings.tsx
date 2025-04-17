@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Card, 
   CardContent, 
@@ -19,10 +19,45 @@ import {
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 const Settings = () => {
+  const [isGoogleCalendarConnected, setIsGoogleCalendarConnected] = useState(false);
+  
   const handleSave = () => {
     toast.success('Settings saved successfully!');
+  };
+
+  const handleConnectGoogleCalendar = async () => {
+    try {
+      // Authenticate with Google using Supabase
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          scopes: 'https://www.googleapis.com/auth/calendar',
+          redirectTo: `${window.location.origin}/settings`
+        }
+      });
+
+      if (error) {
+        toast.error('Failed to connect Google Calendar', {
+          description: error.message
+        });
+      } else {
+        // We'll handle the redirect back from Google auth in a real implementation
+        toast.success('Google Calendar connection initiated');
+      }
+    } catch (error) {
+      toast.error('Failed to connect Google Calendar', {
+        description: (error as Error).message
+      });
+    }
+  };
+
+  // This function would disconnect the Google Calendar in a real implementation
+  const handleDisconnectGoogleCalendar = () => {
+    setIsGoogleCalendarConnected(false);
+    toast.success('Google Calendar disconnected');
   };
 
   return (
@@ -75,10 +110,14 @@ const Settings = () => {
                 <div className="space-y-0.5">
                   <Label>Google Calendar</Label>
                   <p className="text-sm text-muted-foreground">
-                    Connect to sync events
+                    {isGoogleCalendarConnected ? 'Connected - sync events automatically' : 'Connect to sync events'}
                   </p>
                 </div>
-                <Button variant="outline" size="sm">Connect</Button>
+                {isGoogleCalendarConnected ? (
+                  <Button variant="outline" size="sm" onClick={handleDisconnectGoogleCalendar}>Disconnect</Button>
+                ) : (
+                  <Button variant="outline" size="sm" onClick={handleConnectGoogleCalendar}>Connect</Button>
+                )}
               </div>
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">

@@ -1,10 +1,11 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ArrowLeft, ArrowRight, Check } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 import CustomPreferences from '@/components/CustomPreferences';
 import StepProgressBar from '@/components/onboarding/StepProgressBar';
 import { useOnboarding } from '@/hooks/useOnboarding';
@@ -15,6 +16,7 @@ const Onboarding = () => {
   const {
     currentStep,
     preferences,
+    steps,
     handleInputChange,
     handleCheckboxChange,
     handleNext,
@@ -36,241 +38,208 @@ const Onboarding = () => {
     }
   };
 
-  const steps = [
-    {
-      id: 'work-hours',
-      title: 'What are your preferred work hours?',
-      description: 'Choose your ideal work schedule',
-      content: (
-        <RadioGroup
-          value={preferences.workHours}
-          onValueChange={(value) => handleInputChange('workHours', value)}
-          className="grid grid-cols-1 gap-4"
-        >
-          <div className="flex items-center space-x-2 p-4 border rounded-md hover:bg-accent">
-            <RadioGroupItem value="9-5" id="work-9-5" />
-            <Label htmlFor="work-9-5" className="flex items-center cursor-pointer">
-              <span className="mr-2">🕒</span> 9 AM – 5 PM
-            </Label>
+  // Fix duplicate steps declaration by using the one from useOnboarding
+  const renderStep = () => {
+    switch (currentStep) {
+      case 0:
+        return (
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">What are your work hours?</h3>
+            <RadioGroup
+              value={preferences.workHours}
+              onValueChange={(value) => handleInputChange('workHours', value)}
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="9-5" id="9-5" />
+                <Label htmlFor="9-5">9:00 AM - 5:00 PM</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="8-4" id="8-4" />
+                <Label htmlFor="8-4">8:00 AM - 4:00 PM</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="10-6" id="10-6" />
+                <Label htmlFor="10-6">10:00 AM - 6:00 PM</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="flexible" id="flexible" />
+                <Label htmlFor="flexible">Flexible hours</Label>
+              </div>
+            </RadioGroup>
           </div>
-          <div className="flex items-center space-x-2 p-4 border rounded-md hover:bg-accent">
-            <RadioGroupItem value="10-6" id="work-10-6" />
-            <Label htmlFor="work-10-6" className="flex items-center cursor-pointer">
-              <span className="mr-2">🕓</span> 10 AM – 6 PM
-            </Label>
+        );
+      case 1:
+        return (
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">How many hours of deep work do you prefer daily?</h3>
+            <RadioGroup
+              value={preferences.deepWorkHours}
+              onValueChange={(value) => handleInputChange('deepWorkHours', value)}
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="2" id="2hours" />
+                <Label htmlFor="2hours">2 hours</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="4" id="4hours" />
+                <Label htmlFor="4hours">4 hours</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="6" id="6hours" />
+                <Label htmlFor="6hours">6 hours</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="8" id="8hours" />
+                <Label htmlFor="8hours">8 hours</Label>
+              </div>
+            </RadioGroup>
           </div>
-        </RadioGroup>
-      )
-    },
-    {
-      id: 'deep-work',
-      title: 'How many hours a day would you like to focus on deep work?',
-      description: 'Select your preferred deep work time',
-      content: (
-        <RadioGroup
-          value={preferences.deepWorkHours}
-          onValueChange={(value) => handleInputChange('deepWorkHours', value)}
-          className="grid grid-cols-1 gap-4"
-        >
-          <div className="flex items-center space-x-2 p-4 border rounded-md hover:bg-accent">
-            <RadioGroupItem value="2" id="deep-2" />
-            <Label htmlFor="deep-2" className="flex items-center cursor-pointer">
-              <span className="mr-2">🔘</span> 2 hours
-            </Label>
+        );
+      case 2:
+        return (
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">What personal activities do you want to schedule?</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="meals" 
+                  checked={preferences.personalActivities.includes('meals')}
+                  onCheckedChange={(checked) => handleCheckboxChange('personalActivities', 'meals', checked === true)}
+                />
+                <Label htmlFor="meals">Meals</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="workout" 
+                  checked={preferences.personalActivities.includes('workout')}
+                  onCheckedChange={(checked) => handleCheckboxChange('personalActivities', 'workout', checked === true)}
+                />
+                <Label htmlFor="workout">Workout</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="learning" 
+                  checked={preferences.personalActivities.includes('learning')}
+                  onCheckedChange={(checked) => handleCheckboxChange('personalActivities', 'learning', checked === true)}
+                />
+                <Label htmlFor="learning">Learning</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="relaxation" 
+                  checked={preferences.personalActivities.includes('relaxation')}
+                  onCheckedChange={(checked) => handleCheckboxChange('personalActivities', 'relaxation', checked === true)}
+                />
+                <Label htmlFor="relaxation">Relaxation</Label>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center space-x-2 p-4 border rounded-md hover:bg-accent">
-            <RadioGroupItem value="4" id="deep-4" />
-            <Label htmlFor="deep-4" className="flex items-center cursor-pointer">
-              <span className="mr-2">🔘</span> 4 hours
-            </Label>
+        );
+      case 3:
+        return (
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">When do you prefer to workout?</h3>
+            <RadioGroup
+              value={preferences.workoutTime}
+              onValueChange={(value) => handleInputChange('workoutTime', value)}
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="morning" id="morning" />
+                <Label htmlFor="morning">Morning</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="lunch" id="lunch" />
+                <Label htmlFor="lunch">Lunch Break</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="evening" id="evening" />
+                <Label htmlFor="evening">Evening</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="none" id="none" />
+                <Label htmlFor="none">I don't workout regularly</Label>
+              </div>
+            </RadioGroup>
           </div>
-          <div className="flex items-center space-x-2 p-4 border rounded-md hover:bg-accent">
-            <RadioGroupItem value="6" id="deep-6" />
-            <Label htmlFor="deep-6" className="flex items-center cursor-pointer">
-              <span className="mr-2">🔘</span> 6+ hours
-            </Label>
+        );
+      case 4:
+        return (
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">What is your meeting preference?</h3>
+            <RadioGroup
+              value={preferences.meetingPreference}
+              onValueChange={(value) => handleInputChange('meetingPreference', value)}
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="morning" id="morning-meetings" />
+                <Label htmlFor="morning-meetings">Morning Meetings</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="afternoon" id="afternoon-meetings" />
+                <Label htmlFor="afternoon-meetings">Afternoon Meetings</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="grouped" id="grouped-meetings" />
+                <Label htmlFor="grouped-meetings">Group Meetings Together</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="spread" id="spread-meetings" />
+                <Label htmlFor="spread-meetings">Spread Throughout Day</Label>
+              </div>
+            </RadioGroup>
           </div>
-        </RadioGroup>
-      )
-    },
-    {
-      id: 'personal-activities',
-      title: 'Do you want to include time for personal activities?',
-      description: 'Select all that apply',
-      content: (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="flex items-center space-x-2 p-4 border rounded-md hover:bg-accent">
-            <Checkbox 
-              id="workout" 
-              checked={preferences.personalActivities.includes('workout')}
-              onCheckedChange={(checked) => {
-                handleCheckboxChange('personalActivities', 'workout', checked);
-              }}
-            />
-            <Label htmlFor="workout" className="flex items-center cursor-pointer">
-              <span className="mr-2">🏋️‍♀️</span> Workout
-            </Label>
+        );
+      case 5:
+        return (
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">How many meetings per day do you prefer?</h3>
+            <RadioGroup
+              value={preferences.meetingsPerDay}
+              onValueChange={(value) => handleInputChange('meetingsPerDay', value)}
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="0-1" id="0-1-meetings" />
+                <Label htmlFor="0-1-meetings">0-1 meetings</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="2-3" id="2-3-meetings" />
+                <Label htmlFor="2-3-meetings">2-3 meetings</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="4-5" id="4-5-meetings" />
+                <Label htmlFor="4-5-meetings">4-5 meetings</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="6+" id="6+-meetings" />
+                <Label htmlFor="6+-meetings">6+ meetings</Label>
+              </div>
+            </RadioGroup>
           </div>
-          <div className="flex items-center space-x-2 p-4 border rounded-md hover:bg-accent">
-            <Checkbox 
-              id="learning" 
-              checked={preferences.personalActivities.includes('learning')}
-              onCheckedChange={(checked) => {
-                handleCheckboxChange('personalActivities', 'learning', checked);
-              }}
-            />
-            <Label htmlFor="learning" className="flex items-center cursor-pointer">
-              <span className="mr-2">📚</span> Learning
-            </Label>
-          </div>
-          <div className="flex items-center space-x-2 p-4 border rounded-md hover:bg-accent">
-            <Checkbox 
-              id="meals" 
-              checked={preferences.personalActivities.includes('meals')}
-              onCheckedChange={(checked) => {
-                handleCheckboxChange('personalActivities', 'meals', checked);
-              }}
-            />
-            <Label htmlFor="meals" className="flex items-center cursor-pointer">
-              <span className="mr-2">🍽️</span> Meals with family
-            </Label>
-          </div>
-          <div className="flex items-center space-x-2 p-4 border rounded-md hover:bg-accent">
-            <Checkbox 
-              id="relaxation" 
-              checked={preferences.personalActivities.includes('relaxation')}
-              onCheckedChange={(checked) => {
-                handleCheckboxChange('personalActivities', 'relaxation', checked);
-              }}
-            />
-            <Label htmlFor="relaxation" className="flex items-center cursor-pointer">
-              <span className="mr-2">🧘</span> Relaxation
-            </Label>
-          </div>
-        </div>
-      )
-    },
-    {
-      id: 'workout-time',
-      title: 'Preferred time for workouts?',
-      description: 'When do you prefer to exercise?',
-      content: (
-        <RadioGroup
-          value={preferences.workoutTime}
-          onValueChange={(value) => handleInputChange('workoutTime', value)}
-          className="grid grid-cols-1 gap-4"
-        >
-          <div className="flex items-center space-x-2 p-4 border rounded-md hover:bg-accent">
-            <RadioGroupItem value="morning" id="workout-morning" />
-            <Label htmlFor="workout-morning" className="flex items-center cursor-pointer">
-              <span className="mr-2">⏰</span> Morning
-            </Label>
-          </div>
-          <div className="flex items-center space-x-2 p-4 border rounded-md hover:bg-accent">
-            <RadioGroupItem value="evening" id="workout-evening" />
-            <Label htmlFor="workout-evening" className="flex items-center cursor-pointer">
-              <span className="mr-2">🌇</span> Evening
-            </Label>
-          </div>
-          <div className="flex items-center space-x-2 p-4 border rounded-md hover:bg-accent">
-            <RadioGroupItem value="skip" id="workout-skip" />
-            <Label htmlFor="workout-skip" className="flex items-center cursor-pointer">
-              <span className="mr-2">❌</span> Skip
-            </Label>
-          </div>
-        </RadioGroup>
-      )
-    },
-    {
-      id: 'meeting-preference',
-      title: 'When do you prefer meetings?',
-      description: 'Select your preferred meeting time',
-      content: (
-        <RadioGroup
-          value={preferences.meetingPreference}
-          onValueChange={(value) => handleInputChange('meetingPreference', value)}
-          className="grid grid-cols-1 gap-4"
-        >
-          <div className="flex items-center space-x-2 p-4 border rounded-md hover:bg-accent">
-            <RadioGroupItem value="mid-morning" id="meeting-morning" />
-            <Label htmlFor="meeting-morning" className="flex items-center cursor-pointer">
-              <span className="mr-2">🕙</span> Mid-morning (10–12)
-            </Label>
-          </div>
-          <div className="flex items-center space-x-2 p-4 border rounded-md hover:bg-accent">
-            <RadioGroupItem value="afternoon" id="meeting-afternoon" />
-            <Label htmlFor="meeting-afternoon" className="flex items-center cursor-pointer">
-              <span className="mr-2">🕑</span> Afternoon (1–4)
-            </Label>
-          </div>
-        </RadioGroup>
-      )
-    },
-    {
-      id: 'meetings-per-day',
-      title: 'How many meetings do you usually have per day?',
-      description: 'Select the average number of meetings',
-      content: (
-        <RadioGroup
-          value={preferences.meetingsPerDay}
-          onValueChange={(value) => handleInputChange('meetingsPerDay', value)}
-          className="grid grid-cols-1 gap-4"
-        >
-          <div className="flex items-center space-x-2 p-4 border rounded-md hover:bg-accent">
-            <RadioGroupItem value="0-1" id="meetings-0-1" />
-            <Label htmlFor="meetings-0-1" className="flex items-center cursor-pointer">
-              <span className="mr-2">🔘</span> 0–1
-            </Label>
-          </div>
-          <div className="flex items-center space-x-2 p-4 border rounded-md hover:bg-accent">
-            <RadioGroupItem value="2-3" id="meetings-2-3" />
-            <Label htmlFor="meetings-2-3" className="flex items-center cursor-pointer">
-              <span className="mr-2">🔘</span> 2–3
-            </Label>
-          </div>
-          <div className="flex items-center space-x-2 p-4 border rounded-md hover:bg-accent">
-            <RadioGroupItem value="4+" id="meetings-4+" />
-            <Label htmlFor="meetings-4+" className="flex items-center cursor-pointer">
-              <span className="mr-2">🔘</span> 4+
-            </Label>
-          </div>
-        </RadioGroup>
-      )
-    },
-    {
-      id: 'auto-reschedule',
-      title: 'Would you like the AI to automatically reschedule tasks if priorities change?',
-      description: 'Choose your preference for AI rescheduling',
-      content: (
-        <div className="space-y-6">
-          <RadioGroup
-            value={preferences.autoReschedule ? 'yes' : 'no'}
-            onValueChange={(value) => handleInputChange('autoReschedule', value === 'yes')}
-            className="grid grid-cols-1 gap-4 mb-6"
-          >
-            <div className="flex items-center space-x-2 p-4 border rounded-md hover:bg-accent">
-              <RadioGroupItem value="yes" id="reschedule-yes" />
-              <Label htmlFor="reschedule-yes" className="flex items-center cursor-pointer">
-                <span className="mr-2">✅</span> Yes
+        );
+      case 6:
+        return (
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">Would you like AI to automatically reschedule events when conflicts arise?</h3>
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="auto-reschedule"
+                checked={preferences.autoReschedule}
+                onCheckedChange={(checked) => handleInputChange('autoReschedule', checked)}
+              />
+              <Label htmlFor="auto-reschedule">
+                Enable automatic rescheduling
               </Label>
             </div>
-            <div className="flex items-center space-x-2 p-4 border rounded-md hover:bg-accent">
-              <RadioGroupItem value="no" id="reschedule-no" />
-              <Label htmlFor="reschedule-no" className="flex items-center cursor-pointer">
-                <span className="mr-2">❌</span> No
-              </Label>
-            </div>
-          </RadioGroup>
-          <CustomPreferences 
-            value={preferences.customPreferences}
-            onChange={(value) => handleInputChange('customPreferences', value)}
-          />
-        </div>
-      )
+            <CustomPreferences 
+              value={preferences.customPreferences}
+              onChange={(value) => handleInputChange('customPreferences', value)}
+            />
+          </div>
+        );
+      default:
+        return null;
     }
-  ];
-
-  const currentStepData = steps[currentStep];
+  };
 
   return (
     <div className="max-w-2xl mx-auto py-6 animate-fade-in">
@@ -292,37 +261,24 @@ const Onboarding = () => {
       
       <Card className="schedule-card">
         <CardHeader>
-          <CardTitle>{currentStepData.title}</CardTitle>
-          <CardDescription>{currentStepData.description}</CardDescription>
+          <CardTitle>Step {currentStep + 1}: {steps[currentStep]?.id?.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</CardTitle>
+          <CardDescription>
+            Help us understand your preferences for an optimized schedule
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          {React.cloneElement(currentStepData.content, {
-            preferences,
-            handleInputChange,
-            handleCheckboxChange
-          })}
+          {renderStep()}
         </CardContent>
         <CardFooter className="flex justify-between">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={handleBack}
             disabled={currentStep === 0}
           >
-            <ArrowLeft className="mr-2 h-4 w-4" />
             Back
           </Button>
           <Button onClick={handleNext}>
-            {currentStep === steps.length - 1 ? (
-              <>
-                Finish
-                <Check className="ml-2 h-4 w-4" />
-              </>
-            ) : (
-              <>
-                Next
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </>
-            )}
+            {currentStep === steps.length - 1 ? 'Finish' : 'Next'}
           </Button>
         </CardFooter>
       </Card>
