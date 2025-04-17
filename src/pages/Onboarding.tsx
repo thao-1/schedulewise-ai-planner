@@ -6,6 +6,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
+import { Loader2 } from 'lucide-react';
 import CustomPreferences from '@/components/CustomPreferences';
 import StepProgressBar from '@/components/onboarding/StepProgressBar';
 import { useOnboarding } from '@/hooks/useOnboarding';
@@ -25,15 +26,23 @@ const Onboarding = () => {
     handleNext,
     handleBack
   } = useOnboarding();
-  const { generateSchedule, isGenerating } = useScheduleGeneration();
+  const { generateSchedule, isGenerating, generationError } = useScheduleGeneration();
   const navigate = useNavigate();
   const [showGoogleStep, setShowGoogleStep] = useState(false);
+  const [generationAttempted, setGenerationAttempted] = useState(false);
 
   const handleComplete = async () => {
+    setGenerationAttempted(true);
+    
     const schedule = await generateSchedule(preferences);
+    
     if (schedule) {
       toast.success('Schedule generated successfully!');
       setShowGoogleStep(true);
+    } else if (generationError) {
+      toast.error('Schedule generation failed', {
+        description: 'Please try again or contact support if the problem persists.'
+      });
     }
   };
 
@@ -315,19 +324,47 @@ const Onboarding = () => {
           <Button
             variant="outline"
             onClick={handleBack}
-            disabled={currentStep === 0}
+            disabled={currentStep === 0 || isGenerating}
           >
             Back
           </Button>
           {currentStep === steps.length - 1 ? (
-            <Button onClick={handleComplete} disabled={isGenerating}>
-              {isGenerating ? 'Generating...' : 'Finish'}
+            <Button 
+              onClick={handleComplete} 
+              disabled={isGenerating}
+              className="min-w-[100px]"
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Generating...
+                </>
+              ) : 'Finish'}
             </Button>
           ) : (
             <Button onClick={handleNext}>Next</Button>
           )}
         </CardFooter>
       </Card>
+      
+      {generationAttempted && generationError && (
+        <Card className="mt-4 border-red-300 bg-red-50">
+          <CardContent className="pt-6">
+            <h3 className="text-lg font-medium text-red-800">Unable to generate schedule</h3>
+            <p className="text-red-600 mt-2">
+              There was an error generating your schedule. Please try again or contact support.
+            </p>
+            <Button 
+              variant="destructive" 
+              className="mt-4" 
+              onClick={handleComplete}
+              disabled={isGenerating}
+            >
+              Try Again
+            </Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
