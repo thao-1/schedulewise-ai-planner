@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,6 +10,9 @@ import StepProgressBar from '@/components/onboarding/StepProgressBar';
 import { useOnboarding } from '@/hooks/useOnboarding';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
+import { useScheduleGeneration } from '@/hooks/useScheduleGeneration';
+import GoogleIntegrationStep from '@/components/onboarding/GoogleIntegrationStep';
 
 const Onboarding = () => {
   const {
@@ -22,23 +24,21 @@ const Onboarding = () => {
     handleNext,
     handleBack
   } = useOnboarding();
+  const { generateSchedule, isGenerating } = useScheduleGeneration();
+  const navigate = useNavigate();
 
-  const handleGoogleSignIn = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: window.location.origin + '/onboarding'
-      }
-    });
-
-    if (error) {
-      toast.error('Google Sign-In failed', {
-        description: error.message
-      });
+  const handleComplete = async () => {
+    const schedule = await generateSchedule(preferences);
+    if (schedule) {
+      toast.success('Schedule generated successfully!');
+      navigate('/schedule');
     }
   };
 
-  // Fix duplicate steps declaration by using the one from useOnboarding
+  const handleSkipGoogle = () => {
+    navigate('/schedule');
+  };
+
   const renderStep = () => {
     switch (currentStep) {
       case 0:
@@ -236,9 +236,9 @@ const Onboarding = () => {
             />
           </div>
         );
-      default:
-        return null;
     }
+
+    return null;
   };
 
   return (
