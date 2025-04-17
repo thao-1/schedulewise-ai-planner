@@ -35,6 +35,10 @@ export const useScheduleGeneration = () => {
       }
       
       console.log('Schedule generated successfully:', data.schedule);
+      
+      // Store the generated schedule in localStorage
+      localStorage.setItem('generatedSchedule', JSON.stringify(data.schedule));
+      
       return data.schedule;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
