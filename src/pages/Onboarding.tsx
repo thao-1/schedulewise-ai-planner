@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -26,18 +27,59 @@ const Onboarding = () => {
   } = useOnboarding();
   const { generateSchedule, isGenerating } = useScheduleGeneration();
   const navigate = useNavigate();
+  const [showGoogleStep, setShowGoogleStep] = useState(false);
 
   const handleComplete = async () => {
     const schedule = await generateSchedule(preferences);
     if (schedule) {
       toast.success('Schedule generated successfully!');
-      navigate('/schedule');
+      setShowGoogleStep(true);
     }
+  };
+
+  const handleGoogleComplete = () => {
+    navigate('/schedule');
   };
 
   const handleSkipGoogle = () => {
     navigate('/schedule');
   };
+
+  const connectWithGoogle = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          scopes: 'https://www.googleapis.com/auth/calendar',
+          redirectTo: `${window.location.origin}/onboarding`
+        }
+      });
+
+      if (error) {
+        toast.error('Failed to connect with Google', {
+          description: error.message
+        });
+      } else {
+        toast.success('Successfully initiated Google connection');
+      }
+    } catch (error) {
+      toast.error('Failed to connect with Google', {
+        description: (error as Error).message
+      });
+    }
+  };
+
+  // If we're showing the Google integration step
+  if (showGoogleStep) {
+    return (
+      <div className="max-w-2xl mx-auto py-6 animate-fade-in">
+        <GoogleIntegrationStep 
+          onComplete={handleGoogleComplete}
+          onSkip={handleSkipGoogle}
+        />
+      </div>
+    );
+  }
 
   const renderStep = () => {
     switch (currentStep) {
@@ -250,9 +292,9 @@ const Onboarding = () => {
           <Button 
             variant="outline" 
             className="w-full max-w-md"
-            onClick={handleGoogleSignIn}
+            onClick={connectWithGoogle}
           >
-            Sign in with Google
+            Connect with Google
           </Button>
         </CardContent>
       </Card>
@@ -277,9 +319,13 @@ const Onboarding = () => {
           >
             Back
           </Button>
-          <Button onClick={handleNext}>
-            {currentStep === steps.length - 1 ? 'Finish' : 'Next'}
-          </Button>
+          {currentStep === steps.length - 1 ? (
+            <Button onClick={handleComplete} disabled={isGenerating}>
+              {isGenerating ? 'Generating...' : 'Finish'}
+            </Button>
+          ) : (
+            <Button onClick={handleNext}>Next</Button>
+          )}
         </CardFooter>
       </Card>
     </div>
