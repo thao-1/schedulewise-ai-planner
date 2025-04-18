@@ -47,7 +47,7 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
       setError(null);
       
       // Log the attempt with the client ID
-      console.log('Attempting Google integration with configured client');
+      console.log('Attempting Google integration with updated client credentials');
       
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
@@ -55,8 +55,8 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
           scopes: 'https://www.googleapis.com/auth/calendar',
           redirectTo: `${window.location.origin}/schedule`,
           queryParams: {
-            // Add client ID explicitly (though Supabase should use the one configured in the project)
-            client_id: '535234825329-h97pbhq5hfjpb8fnpp6e01inuvfnvuk4.apps.googleusercontent.com'
+            // Using the new client ID you provided
+            client_id: '136254816370-75sqblkuldi99avsa50jhb230g16qqrq.apps.googleusercontent.com'
           }
         }
       });
@@ -114,8 +114,12 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
                 <p className="text-red-800 text-sm font-medium">Administrator Action Required:</p>
                 <p className="text-red-700 text-sm">
                   Enable Google provider in Supabase Authentication settings and ensure the 
-                  Google client ID and secret are correctly configured.
+                  Google client ID and secret are correctly configured with the following values:
                 </p>
+                <ul className="text-red-700 text-sm mt-1 ml-4 list-disc">
+                  <li>Client ID: 136254816370-75sqblkuldi99avsa50jhb230g16qqrq.apps.googleusercontent.com</li>
+                  <li>Redirect URL: {window.location.origin}/schedule</li>
+                </ul>
               </div>
             )}
           </div>
