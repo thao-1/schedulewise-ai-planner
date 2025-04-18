@@ -42,12 +42,35 @@ serve(async (req) => {
       );
     }
 
-    // Extract the JWT token and the user's access token
+    // Extract the JWT token
     const jwtToken = authHeader.replace('Bearer ', '');
-
-    // In a real implementation, we would verify the JWT and extract user info
-    // For now, we'll simulate the process of getting the Google access token
-    console.log("Processing schedule with token:", jwtToken.substring(0, 10) + "...");
+    
+    // Verify the JWT token and get the user's access token
+    // This assumes you're using Supabase Auth and the token contains the user's Google access token
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+    
+    // Get user info from Supabase
+    const userResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: {
+        'Authorization': `Bearer ${jwtToken}`,
+        'apikey': supabaseKey
+      }
+    });
+    
+    if (!userResponse.ok) {
+      throw new Error('Failed to verify user token');
+    }
+    
+    const userData = await userResponse.json();
+    
+    // Get the user's Google access token
+    // This assumes the token is stored in the user's provider_token field
+    const googleAccessToken = userData.provider_token;
+    
+    if (!googleAccessToken) {
+      throw new Error('No Google access token found. Please reconnect your Google account.');
+    }
 
     // Get events from the schedule and format for Google Calendar
     const googleEvents = schedule.map((event: ScheduleEvent) => {
@@ -99,19 +122,85 @@ serve(async (req) => {
       };
     });
 
-    // In a full implementation, we would make actual API calls to Google Calendar
-    // For now, we'll log what would be added and simulate success
-    console.log(`Would add ${googleEvents.length} events to Google Calendar`);
-    googleEvents.forEach(event => {
-      console.log(`- ${event.summary} (${event.start.dateTime} to ${event.end.dateTime})`);
-    });
+    // Make actual API calls to Google Calendar
+    const successfulEvents = [];
+    const failedEvents = [];
+    
+    // Create a calendar for our app if it doesn't exist
+    const calendarName = "ScheduleWise";
+    let calendarId = "primary"; // Default to primary calendar
+    
+    try {
+      // First check if our calendar already exists
+      const calendarListResponse = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
+        headers: {
+          'Authorization': `Bearer ${googleAccessToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (calendarListResponse.ok) {
+        const calendarList = await calendarListResponse.json();
+        const existingCalendar = calendarList.items.find((cal: any) => cal.summary === calendarName);
+        
+        if (existingCalendar) {
+          calendarId = existingCalendar.id;
+        } else {
+          // Create a new calendar for our app
+          const createCalendarResponse = await fetch('https://www.googleapis.com/calendar/v3/calendars', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${googleAccessToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              summary: calendarName,
+              description: "Calendar created by ScheduleWise for your AI-generated schedule"
+            })
+          });
+          
+          if (createCalendarResponse.ok) {
+            const newCalendar = await createCalendarResponse.json();
+            calendarId = newCalendar.id;
+          }
+        }
+      }
+    } catch (calendarError) {
+      console.error("Error creating/finding calendar:", calendarError);
+      // Continue with primary calendar if there's an error
+    }
+    
+    // Add each event to the calendar
+    for (const event of googleEvents) {
+      try {
+        const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${googleAccessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(event)
+        });
+        
+        if (response.ok) {
+          successfulEvents.push(await response.json());
+        } else {
+          const errorData = await response.json();
+          console.error("Error adding event:", errorData);
+          failedEvents.push({ event, error: errorData });
+        }
+      } catch (eventError) {
+        console.error("Error adding event:", eventError);
+        failedEvents.push({ event, error: eventError.message });
+      }
+    }
 
-    // Simulate successful response
     return new Response(
       JSON.stringify({ 
-        success: true, 
-        eventsAdded: googleEvents.length,
-        message: 'Schedule successfully synced with Google Calendar'
+        success: successfulEvents.length > 0, 
+        eventsAdded: successfulEvents.length,
+        eventsFailed: failedEvents.length,
+        message: `Added ${successfulEvents.length} events to Google Calendar${failedEvents.length > 0 ? ` (${failedEvents.length} failed)` : ''}`
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

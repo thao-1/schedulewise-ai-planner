@@ -71,8 +71,12 @@ export const useScheduleGeneration = () => {
         throw new Error('No schedule found to sync');
       }
       
+      // Pass the JWT token in the Authorization header
       const { data, error } = await supabase.functions.invoke('sync-google-calendar', {
-        body: { schedule: JSON.parse(savedSchedule) }
+        body: { schedule: JSON.parse(savedSchedule) },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
       });
       
       if (error) {

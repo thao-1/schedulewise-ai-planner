@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { AlertCircle, Calendar, Check } from 'lucide-react';
+import { useScheduleGeneration } from '@/hooks/useScheduleGeneration';
 
 interface GoogleIntegrationStepProps {
   onComplete: () => void;
@@ -17,6 +18,9 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
   const [isInIframe, setIsInIframe] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [syncingSchedule, setSyncingSchedule] = useState(false);
+
+  // Add the hook
+  const { syncScheduleToGoogle, isSyncingToGoogle } = useScheduleGeneration();
 
   // Check if running in an iframe
   useEffect(() => {
@@ -64,10 +68,19 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
 
     // Check if we have a Google token from auth callback
     const checkAuthCallback = async () => {
+      // Check URL for auth callback parameters
       const params = new URLSearchParams(window.location.hash.substring(1));
-      if (params.has('access_token')) {
+      const urlParams = new URLSearchParams(window.location.search);
+      
+      // Check for access_token in hash or successful auth in query params
+      if (params.has('access_token') || urlParams.get('provider') === 'google') {
         setIsConnected(true);
         toast.success('Successfully connected with Google!');
+        
+        // Auto-trigger sync after successful connection
+        setTimeout(() => {
+          handleSyncSchedule();
+        }, 1000);
       }
     };
 
@@ -91,12 +104,11 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
       
       console.log('Attempting Google integration with Supabase');
       
-      // Use the standard Supabase OAuth flow without specifying any credentials
-      // Let Supabase handle the OAuth flow with its configured credentials
+      // Request calendar scope explicitly
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          scopes: 'https://www.googleapis.com/auth/calendar',
+          scopes: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar',
           redirectTo: `${window.location.origin}/onboarding`, // Redirect back to onboarding
         }
       });
@@ -131,53 +143,12 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
   };
 
   const handleSyncSchedule = async () => {
-    try {
-      setSyncingSchedule(true);
-      
-      // Get the existing schedule from localStorage
-      const savedSchedule = localStorage.getItem('generatedSchedule');
-      if (!savedSchedule) {
-        toast.error('No schedule found to sync');
-        return;
-      }
-      
-      // Get user session to verify we have the token
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toast.error('You need to be logged in to sync your schedule');
-        return;
-      }
-      
-      // Call our Supabase function to sync schedule with Google Calendar
-      const { data, error } = await supabase.functions.invoke('sync-google-calendar', {
-        body: { schedule: JSON.parse(savedSchedule) }
-      });
-
-      if (error) {
-        console.error('Error syncing with Google Calendar:', error);
-        toast.error('Failed to sync with Google Calendar', {
-          description: error.message
-        });
-        return;
-      }
-      
-      toast.success('Schedule successfully synced with Google Calendar!', {
-        description: `${data?.eventsAdded || 0} events added to your calendar`
-      });
-      
+    const success = await syncScheduleToGoogle();
+    if (success) {
       // Wait a moment before completing to let the user see the success message
       setTimeout(() => {
         onComplete();
       }, 2000);
-      
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      console.error('Schedule sync error:', errorMessage);
-      toast.error('Failed to sync schedule', {
-        description: errorMessage
-      });
-    } finally {
-      setSyncingSchedule(false);
     }
   };
 

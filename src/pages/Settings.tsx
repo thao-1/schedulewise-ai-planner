@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Card, 
   CardContent, 
@@ -20,21 +20,45 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { useScheduleGeneration } from '@/hooks/useScheduleGeneration';
 
 const Settings = () => {
   const [isGoogleCalendarConnected, setIsGoogleCalendarConnected] = useState(false);
+  const { syncScheduleToGoogle, isSyncingToGoogle } = useScheduleGeneration();
   
+  // Check if user is connected to Google on component mount
+  useEffect(() => {
+    const checkGoogleConnection = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.app_metadata?.provider === 'google') {
+        setIsGoogleCalendarConnected(true);
+        
+        // Check if this is a redirect from Google auth
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('provider') === 'google') {
+          toast.success('Successfully connected with Google Calendar!');
+          // Auto-trigger sync
+          setTimeout(() => {
+            handleSyncCalendar();
+          }, 1000);
+        }
+      }
+    };
+    
+    checkGoogleConnection();
+  }, []);
+
   const handleSave = () => {
     toast.success('Settings saved successfully!');
   };
 
   const handleConnectGoogleCalendar = async () => {
     try {
-      // Authenticate with Google using Supabase
+      // Authenticate with Google using Supabase with explicit calendar scopes
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          scopes: 'https://www.googleapis.com/auth/calendar',
+          scopes: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar',
           redirectTo: `${window.location.origin}/settings`
         }
       });
@@ -43,15 +67,17 @@ const Settings = () => {
         toast.error('Failed to connect Google Calendar', {
           description: error.message
         });
-      } else {
-        // We'll handle the redirect back from Google auth in a real implementation
-        toast.success('Google Calendar connection initiated');
       }
     } catch (error) {
       toast.error('Failed to connect Google Calendar', {
         description: (error as Error).message
       });
     }
+  };
+
+  // Add this function to sync calendar when already connected
+  const handleSyncCalendar = async () => {
+    await syncScheduleToGoogle();
   };
 
   // This function would disconnect the Google Calendar in a real implementation
@@ -114,7 +140,23 @@ const Settings = () => {
                   </p>
                 </div>
                 {isGoogleCalendarConnected ? (
-                  <Button variant="outline" size="sm" onClick={handleDisconnectGoogleCalendar}>Disconnect</Button>
+                  <div className="space-x-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={handleSyncCalendar}
+                      disabled={isSyncingToGoogle}
+                    >
+                      {isSyncingToGoogle ? 'Syncing...' : 'Sync Now'}
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={handleDisconnectGoogleCalendar}
+                    >
+                      Disconnect
+                    </Button>
+                  </div>
                 ) : (
                   <Button variant="outline" size="sm" onClick={handleConnectGoogleCalendar}>Connect</Button>
                 )}
