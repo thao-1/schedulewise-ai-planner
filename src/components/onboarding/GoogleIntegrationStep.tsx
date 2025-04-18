@@ -14,6 +14,18 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isProviderEnabled, setIsProviderEnabled] = useState(true);
+  const [isInIframe, setIsInIframe] = useState(false);
+
+  // Check if running in an iframe
+  useEffect(() => {
+    try {
+      setIsInIframe(window.self !== window.top);
+    } catch (e) {
+      // If we can't access window.top due to security restrictions,
+      // we're probably in an iframe
+      setIsInIframe(true);
+    }
+  }, []);
 
   // Check if Google provider is enabled when component mounts
   useEffect(() => {
@@ -43,18 +55,27 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
 
   const handleGoogleIntegration = async () => {
     try {
+      // If we're in an iframe, we need to alert the user
+      if (isInIframe) {
+        setError('Google authentication cannot run in an iframe. Please open this page directly in a new tab.');
+        toast.error('Cannot authenticate in iframe', {
+          description: 'Please open this page in a new browser tab to connect with Google.'
+        });
+        return;
+      }
+
       setIsLoading(true);
       setError(null);
       
-      console.log('Attempting Google integration with Supabase configured client');
+      console.log('Attempting Google integration with Supabase');
       
-      // Use the standard Supabase OAuth flow without specifying the client_id
+      // Use the standard Supabase OAuth flow without specifying any credentials
       // Let Supabase handle the OAuth flow with its configured credentials
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           scopes: 'https://www.googleapis.com/auth/calendar',
-          redirectTo: `${window.location.origin}/schedule`
+          redirectTo: `${window.location.origin}/schedule`,
         }
       });
 
@@ -73,8 +94,8 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
           });
         }
       } else {
-        toast.success('Successfully connected with Google Calendar');
-        onComplete();
+        toast.success('Successfully initiated Google Calendar connection');
+        // We don't call onComplete here as we'll be redirected to Google
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -96,7 +117,28 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
         </p>
       </div>
       
-      {error && (
+      {isInIframe && (
+        <div className="p-4 bg-orange-50 border border-orange-200 rounded-md flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-orange-500 mt-0.5" />
+          <div>
+            <p className="text-orange-800 font-medium">Cannot authenticate in iframe</p>
+            <p className="text-orange-600 text-sm">
+              Google authentication will not work in an iframe for security reasons. 
+              Please open this page directly in a new browser tab.
+            </p>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="mt-2"
+              onClick={() => window.open(window.location.href, '_blank')}
+            >
+              Open in new tab
+            </Button>
+          </div>
+        </div>
+      )}
+      
+      {error && !isInIframe && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-md flex items-start gap-3">
           <AlertCircle className="h-5 w-5 text-red-500 mt-0.5" />
           <div>
@@ -111,13 +153,12 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
                 <p className="text-red-800 text-sm font-medium">Administrator Action Required:</p>
                 <p className="text-red-700 text-sm">
                   Enable Google provider in Supabase Authentication settings and ensure the 
-                  Google client ID and secret are correctly configured with the following values:
+                  Google client ID and secret are correctly configured.
                 </p>
-                <ul className="text-red-700 text-sm mt-1 ml-4 list-disc">
-                  <li>Client ID: 136254816370-75sqblkuldi99avsa50jhb230g16qqrq.apps.googleusercontent.com</li>
-                  <li>Client Secret: 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</li>
-                  <li>Redirect URL: {window.location.origin}/schedule</li>
-                </ul>
+                <p className="text-red-700 text-sm mt-2">
+                  Make sure <strong>X-Frame-Options</strong> is set to <strong>DENY</strong> in your Supabase project settings
+                  to prevent iframe embedding issues.
+                </p>
               </div>
             )}
           </div>
@@ -127,7 +168,7 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
       <div className="flex gap-4">
         <Button 
           onClick={handleGoogleIntegration} 
-          disabled={isLoading || !isProviderEnabled}
+          disabled={isLoading || !isProviderEnabled || isInIframe}
         >
           {isLoading ? 'Connecting...' : 'Connect Google Calendar'}
         </Button>
