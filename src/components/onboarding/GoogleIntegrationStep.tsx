@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Calendar, Check } from 'lucide-react';
 
 interface GoogleIntegrationStepProps {
   onComplete: () => void;
@@ -15,6 +15,8 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
   const [error, setError] = useState<string | null>(null);
   const [isProviderEnabled, setIsProviderEnabled] = useState(true);
   const [isInIframe, setIsInIframe] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+  const [syncingSchedule, setSyncingSchedule] = useState(false);
 
   // Check if running in an iframe
   useEffect(() => {
@@ -31,11 +33,21 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
   useEffect(() => {
     const checkGoogleProvider = async () => {
       try {
+        // Check if the user is already authenticated
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          // Check if the provider is google
+          const provider = session.user?.app_metadata?.provider;
+          if (provider === 'google') {
+            setIsConnected(true);
+          }
+        }
+
         // Attempt a small operation to see if Google provider is enabled
         const { error } = await supabase.auth.signInWithOAuth({
           provider: 'google',
           options: {
-            redirectTo: `${window.location.origin}/schedule`,
+            redirectTo: `${window.location.origin}/onboarding`,
             skipBrowserRedirect: true // Just check, don't actually redirect
           }
         });
@@ -50,7 +62,17 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
       }
     };
 
+    // Check if we have a Google token from auth callback
+    const checkAuthCallback = async () => {
+      const params = new URLSearchParams(window.location.hash.substring(1));
+      if (params.has('access_token')) {
+        setIsConnected(true);
+        toast.success('Successfully connected with Google!');
+      }
+    };
+
     checkGoogleProvider();
+    checkAuthCallback();
   }, []);
 
   const handleGoogleIntegration = async () => {
@@ -75,7 +97,7 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
         provider: 'google',
         options: {
           scopes: 'https://www.googleapis.com/auth/calendar',
-          redirectTo: `${window.location.origin}/schedule`,
+          redirectTo: `${window.location.origin}/onboarding`, // Redirect back to onboarding
         }
       });
 
@@ -105,6 +127,57 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSyncSchedule = async () => {
+    try {
+      setSyncingSchedule(true);
+      
+      // Get the existing schedule from localStorage
+      const savedSchedule = localStorage.getItem('generatedSchedule');
+      if (!savedSchedule) {
+        toast.error('No schedule found to sync');
+        return;
+      }
+      
+      // Get user session to verify we have the token
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('You need to be logged in to sync your schedule');
+        return;
+      }
+      
+      // Call our Supabase function to sync schedule with Google Calendar
+      const { data, error } = await supabase.functions.invoke('sync-google-calendar', {
+        body: { schedule: JSON.parse(savedSchedule) }
+      });
+
+      if (error) {
+        console.error('Error syncing with Google Calendar:', error);
+        toast.error('Failed to sync with Google Calendar', {
+          description: error.message
+        });
+        return;
+      }
+      
+      toast.success('Schedule successfully synced with Google Calendar!', {
+        description: `${data?.eventsAdded || 0} events added to your calendar`
+      });
+      
+      // Wait a moment before completing to let the user see the success message
+      setTimeout(() => {
+        onComplete();
+      }, 2000);
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('Schedule sync error:', errorMessage);
+      toast.error('Failed to sync schedule', {
+        description: errorMessage
+      });
+    } finally {
+      setSyncingSchedule(false);
     }
   };
 
@@ -165,17 +238,44 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
         </div>
       )}
       
-      <div className="flex gap-4">
-        <Button 
-          onClick={handleGoogleIntegration} 
-          disabled={isLoading || !isProviderEnabled || isInIframe}
-        >
-          {isLoading ? 'Connecting...' : 'Connect Google Calendar'}
-        </Button>
-        <Button variant="outline" onClick={onSkip}>
-          Skip for now
-        </Button>
-      </div>
+      {isConnected ? (
+        <div className="p-4 bg-green-50 border border-green-200 rounded-md flex items-start gap-3">
+          <Check className="h-5 w-5 text-green-500 mt-0.5" />
+          <div>
+            <p className="text-green-800 font-medium">Successfully connected with Google!</p>
+            <p className="text-green-600 text-sm">
+              You can now sync your ScheduleWise calendar with Google Calendar.
+            </p>
+            
+            <Button 
+              className="mt-3"
+              onClick={handleSyncSchedule}
+              disabled={syncingSchedule}
+            >
+              {syncingSchedule ? (
+                <>Syncing your schedule...</>
+              ) : (
+                <>
+                  <Calendar className="mr-2 h-4 w-4" />
+                  Sync Schedule to Google Calendar
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex gap-4">
+          <Button 
+            onClick={handleGoogleIntegration} 
+            disabled={isLoading || !isProviderEnabled || isInIframe}
+          >
+            {isLoading ? 'Connecting...' : 'Connect Google Calendar'}
+          </Button>
+          <Button variant="outline" onClick={onSkip}>
+            Skip for now
+          </Button>
+        </div>
+      )}
     </div>
   );
 };

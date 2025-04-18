@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   Card, 
@@ -15,7 +14,7 @@ import {
   SelectValue 
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Plus, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, RefreshCw, Calendar } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useScheduleGeneration } from '@/hooks/useScheduleGeneration';
@@ -25,16 +24,19 @@ const Schedule = () => {
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [scheduleData, setScheduleData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const { generateSchedule } = useScheduleGeneration();
+  const { generateSchedule, syncScheduleToGoogle, isSyncingToGoogle } = useScheduleGeneration();
+  const [isGoogleConnected, setIsGoogleConnected] = useState(false);
 
-  // Function to fetch schedule on component mount
   useEffect(() => {
     const fetchScheduleFromStorage = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         const userId = session?.user?.id;
         
-        // Try to get schedule from localStorage
+        if (session?.user?.app_metadata?.provider === 'google') {
+          setIsGoogleConnected(true);
+        }
+        
         const savedSchedule = localStorage.getItem('generatedSchedule');
         if (savedSchedule) {
           setScheduleData(JSON.parse(savedSchedule));
@@ -42,7 +44,6 @@ const Schedule = () => {
           return;
         }
         
-        // If no schedule in localStorage, display default view with empty schedule
         setIsLoading(false);
       } catch (error) {
         console.error('Error fetching schedule:', error);
@@ -54,7 +55,6 @@ const Schedule = () => {
     fetchScheduleFromStorage();
   }, []);
 
-  // Function to navigate weeks
   const navigateWeek = (direction: 'prev' | 'next') => {
     const newDate = new Date(currentWeek);
     if (direction === 'prev') {
@@ -65,13 +65,11 @@ const Schedule = () => {
     setCurrentWeek(newDate);
   };
 
-  // Function to regenerate schedule
   const handleRegenerateSchedule = async () => {
     try {
       setIsLoading(true);
       toast.info('Regenerating your schedule...');
       
-      // Navigate back to onboarding to regenerate schedule
       window.location.href = '/onboarding';
     } catch (error) {
       toast.error('Failed to regenerate schedule');
@@ -79,7 +77,6 @@ const Schedule = () => {
     }
   };
 
-  // Get week range for display
   const getWeekRange = () => {
     const start = new Date(currentWeek);
     start.setDate(start.getDate() - start.getDay());
@@ -97,13 +94,10 @@ const Schedule = () => {
     }
   };
 
-  // Generate days of the week
   const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   
-  // Generate hours for the day (expanded to cover more of the day)
-  const hoursOfDay = Array.from({ length: 18 }, (_, i) => i + 6); // 6 AM to 11 PM
+  const hoursOfDay = Array.from({ length: 18 }, (_, i) => i + 6);
 
-  // Get color based on event type
   const getEventColor = (type: string) => {
     const colors: { [key: string]: string } = {
       'meeting': 'bg-red-100 border-red-300',
@@ -119,9 +113,12 @@ const Schedule = () => {
     return colors[type] || 'bg-gray-100 border-gray-300';
   };
 
-  // Function to add a new event
   const handleAddEvent = () => {
     window.location.href = '/add-event';
+  };
+
+  const handleGoogleSync = async () => {
+    await syncScheduleToGoogle();
   };
 
   return (
@@ -132,6 +129,21 @@ const Schedule = () => {
           <p className="text-muted-foreground">View and manage your AI-generated schedule</p>
         </div>
         <div className="flex items-center gap-2">
+          {isGoogleConnected && (
+            <Button 
+              variant="outline" 
+              onClick={handleGoogleSync}
+              disabled={isSyncingToGoogle || scheduleData.length === 0}
+              className="flex items-center gap-1"
+            >
+              {isSyncingToGoogle ? (
+                <RefreshCw className="h-4 w-4 animate-spin" />
+              ) : (
+                <Calendar className="h-4 w-4" />
+              )}
+              <span className="hidden sm:inline">{isSyncingToGoogle ? 'Syncing...' : 'Sync to Google'}</span>
+            </Button>
+          )}
           <Button variant="outline" size="icon" onClick={handleAddEvent}>
             <Plus className="h-4 w-4" />
           </Button>
@@ -181,7 +193,6 @@ const Schedule = () => {
           ) : (
             <div className="overflow-x-auto">
               <div className="min-w-[800px]">
-                {/* Calendar header with days */}
                 <div className="grid grid-cols-8 gap-1">
                   <div className="p-2 font-medium text-center"></div>
                   {daysOfWeek.map((day, index) => (
@@ -196,9 +207,7 @@ const Schedule = () => {
                   ))}
                 </div>
 
-                {/* Calendar body with hours and events */}
                 <div className="grid grid-cols-8 gap-1 mt-1">
-                  {/* Hours column */}
                   <div className="space-y-1">
                     {hoursOfDay.map((hour) => (
                       <div key={hour} className="h-20 p-2 text-xs text-center flex items-center justify-center">
@@ -207,11 +216,9 @@ const Schedule = () => {
                     ))}
                   </div>
 
-                  {/* Days columns with events */}
                   {Array.from({ length: 7 }, (_, dayIndex) => (
                     <div key={dayIndex} className="space-y-1">
                       {hoursOfDay.map((hourBlock) => {
-                        // Find events that start within this hour
                         const eventsAtThisTime = scheduleData.filter(
                           event => event.day === dayIndex && Math.floor(event.hour) === hourBlock
                         );
@@ -219,7 +226,6 @@ const Schedule = () => {
                         return (
                           <div key={hourBlock} className="h-20 p-1 border border-dashed border-gray-200 rounded-md relative">
                             {eventsAtThisTime.map(event => {
-                              // Calculate offset for partial hours (e.g., 10.5)
                               const fractionalPart = event.hour - Math.floor(event.hour);
                               const topOffset = fractionalPart * 100;
                               
@@ -259,7 +265,6 @@ const Schedule = () => {
         </CardContent>
       </Card>
 
-      {/* Legend for event types */}
       <Card>
         <CardHeader>
           <CardTitle>Event Types</CardTitle>

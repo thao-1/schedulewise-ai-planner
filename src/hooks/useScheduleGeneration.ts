@@ -7,6 +7,7 @@ import { Preferences } from '@/types/OnboardingTypes';
 export const useScheduleGeneration = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
+  const [isSyncingToGoogle, setIsSyncingToGoogle] = useState(false);
 
   const generateSchedule = async (preferences: Preferences) => {
     setIsGenerating(true);
@@ -54,9 +55,53 @@ export const useScheduleGeneration = () => {
     }
   };
 
+  const syncScheduleToGoogle = async () => {
+    setIsSyncingToGoogle(true);
+    
+    try {
+      // Check if user is authenticated
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('You must be logged in to sync with Google Calendar');
+      }
+      
+      // Get the schedule from localStorage
+      const savedSchedule = localStorage.getItem('generatedSchedule');
+      if (!savedSchedule) {
+        throw new Error('No schedule found to sync');
+      }
+      
+      const { data, error } = await supabase.functions.invoke('sync-google-calendar', {
+        body: { schedule: JSON.parse(savedSchedule) }
+      });
+      
+      if (error) {
+        throw new Error(error.message || 'Failed to sync with Google Calendar');
+      }
+      
+      toast.success('Schedule successfully synced with Google Calendar!', {
+        description: `${data?.eventsAdded || 0} events added to your calendar`
+      });
+      
+      return true;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('Google Calendar sync error:', errorMessage);
+      
+      toast.error('Failed to sync with Google Calendar', {
+        description: errorMessage
+      });
+      return false;
+    } finally {
+      setIsSyncingToGoogle(false);
+    }
+  };
+
   return {
     generateSchedule,
     isGenerating,
-    generationError
+    generationError,
+    syncScheduleToGoogle,
+    isSyncingToGoogle
   };
 };
