@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -13,27 +13,61 @@ interface GoogleIntegrationStepProps {
 const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isProviderEnabled, setIsProviderEnabled] = useState(true);
+
+  // Check if Google provider is enabled when component mounts
+  useEffect(() => {
+    const checkGoogleProvider = async () => {
+      try {
+        // Attempt a small operation to see if Google provider is enabled
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: `${window.location.origin}/schedule`,
+            skipBrowserRedirect: true // Just check, don't actually redirect
+          }
+        });
+
+        // If we get a specific error about provider not enabled
+        if (error && (error.message.includes('not enabled') || error.status === 400)) {
+          setIsProviderEnabled(false);
+          setError('Google authentication is not enabled in your Supabase project. Please check your configuration.');
+        }
+      } catch (err) {
+        console.error('Error checking Google provider:', err);
+      }
+    };
+
+    checkGoogleProvider();
+  }, []);
 
   const handleGoogleIntegration = async () => {
     try {
       setIsLoading(true);
       setError(null);
       
+      // Log the attempt with the client ID
+      console.log('Attempting Google integration with configured client');
+      
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           scopes: 'https://www.googleapis.com/auth/calendar',
-          redirectTo: `${window.location.origin}/schedule`
+          redirectTo: `${window.location.origin}/schedule`,
+          queryParams: {
+            // Add client ID explicitly (though Supabase should use the one configured in the project)
+            client_id: '535234825329-h97pbhq5hfjpb8fnpp6e01inuvfnvuk4.apps.googleusercontent.com'
+          }
         }
       });
 
       if (error) {
         console.error('Google integration error:', error);
         
-        if (error.message.includes('not enabled') || error.status === 400) {
-          setError('Google authentication is not enabled in your Supabase project. Please contact the administrator.');
+        if (error.message.includes('not enabled') || error.message.includes('validation_failed') || error.status === 400) {
+          setError('Google authentication provider is not enabled or properly configured in your Supabase project. Please check your Google client configuration in the Supabase dashboard.');
           toast.error('Google authentication is not enabled', {
-            description: 'This feature requires additional configuration'
+            description: 'This feature requires additional configuration in Supabase'
           });
         } else {
           setError(error.message);
@@ -72,9 +106,18 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
             <p className="text-red-800 font-medium">Google Integration Error</p>
             <p className="text-red-600 text-sm">{error}</p>
             <p className="text-red-600 text-sm mt-2">
-              Note: Google integration requires additional configuration in Supabase.
+              Note: Google integration requires proper configuration in Supabase.
               You can still use ScheduleWise without Google Calendar integration.
             </p>
+            {!isProviderEnabled && (
+              <div className="mt-3 p-3 bg-red-100 rounded-md">
+                <p className="text-red-800 text-sm font-medium">Administrator Action Required:</p>
+                <p className="text-red-700 text-sm">
+                  Enable Google provider in Supabase Authentication settings and ensure the 
+                  Google client ID and secret are correctly configured.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -82,7 +125,7 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
       <div className="flex gap-4">
         <Button 
           onClick={handleGoogleIntegration} 
-          disabled={isLoading}
+          disabled={isLoading || !isProviderEnabled}
         >
           {isLoading ? 'Connecting...' : 'Connect Google Calendar'}
         </Button>
