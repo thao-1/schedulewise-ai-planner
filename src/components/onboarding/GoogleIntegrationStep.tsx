@@ -46,18 +46,15 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
       setIsLoading(true);
       setError(null);
       
-      // Log the attempt with the client ID
-      console.log('Attempting Google integration with updated client credentials');
+      console.log('Attempting Google integration with Supabase configured client');
       
+      // Use the standard Supabase OAuth flow without specifying the client_id
+      // Let Supabase handle the OAuth flow with its configured credentials
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           scopes: 'https://www.googleapis.com/auth/calendar',
-          redirectTo: `${window.location.origin}/schedule`,
-          queryParams: {
-            // Using the new client ID you provided
-            client_id: '136254816370-75sqblkuldi99avsa50jhb230g16qqrq.apps.googleusercontent.com'
-          }
+          redirectTo: `${window.location.origin}/schedule`
         }
       });
 
@@ -118,6 +115,7 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
                 </p>
                 <ul className="text-red-700 text-sm mt-1 ml-4 list-disc">
                   <li>Client ID: 136254816370-75sqblkuldi99avsa50jhb230g16qqrq.apps.googleusercontent.com</li>
+                  <li>Client Secret: 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</li>
                   <li>Redirect URL: {window.location.origin}/schedule</li>
                 </ul>
               </div>
