@@ -21,10 +21,13 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useScheduleGeneration } from '@/hooks/useScheduleGeneration';
+import { useTheme } from 'next-themes';
 
 const Settings = () => {
   const [isGoogleCalendarConnected, setIsGoogleCalendarConnected] = useState(false);
   const { syncScheduleToGoogle, isSyncingToGoogle } = useScheduleGeneration();
+  const { theme, setTheme } = useTheme();
+  const [animations, setAnimations] = useState(true);
   
   // Check if user is connected to Google on component mount
   useEffect(() => {
@@ -46,9 +49,18 @@ const Settings = () => {
     };
     
     checkGoogleConnection();
+    
+    // Load animation preference from localStorage
+    const savedAnimations = localStorage.getItem('useAnimations');
+    if (savedAnimations !== null) {
+      setAnimations(savedAnimations === 'true');
+    }
   }, []);
 
   const handleSave = () => {
+    // Save animation preference to localStorage
+    localStorage.setItem('useAnimations', animations.toString());
+    
     toast.success('Settings saved successfully!');
   };
 
@@ -86,6 +98,21 @@ const Settings = () => {
     toast.success('Google Calendar disconnected');
   };
 
+  const handleThemeChange = (value: string) => {
+    setTheme(value);
+  };
+
+  const handleAnimationsToggle = (checked: boolean) => {
+    setAnimations(checked);
+    
+    // Apply animations class to body
+    if (checked) {
+      document.body.classList.add('use-animations');
+    } else {
+      document.body.classList.remove('use-animations');
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
@@ -104,7 +131,7 @@ const Settings = () => {
             <div className="grid gap-4">
               <div className="flex items-center justify-between">
                 <Label htmlFor="theme-mode">Color Theme</Label>
-                <Select defaultValue="light">
+                <Select value={theme} onValueChange={handleThemeChange}>
                   <SelectTrigger className="w-[180px]">
                     <SelectValue placeholder="Select theme" />
                   </SelectTrigger>
@@ -122,7 +149,7 @@ const Settings = () => {
                     Enable animations for a smoother experience
                   </p>
                 </div>
-                <Switch id="animations" defaultChecked />
+                <Switch id="animations" checked={animations} onCheckedChange={handleAnimationsToggle} />
               </div>
             </div>
           </div>
