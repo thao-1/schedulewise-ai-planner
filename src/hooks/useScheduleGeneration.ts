@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -66,7 +67,7 @@ export const useScheduleGeneration = () => {
         throw new Error('You must be logged in to sync with Google Calendar');
       }
       
-      console.log('User authenticated, session found');
+      console.log('User authenticated, session found', session);
       
       // Get the schedule from localStorage
       const savedSchedule = localStorage.getItem('generatedSchedule');
@@ -77,8 +78,29 @@ export const useScheduleGeneration = () => {
       
       console.log('Schedule found in localStorage, preparing to sync');
       
-      // Make sure we're using the full Supabase URL when calling the function
-      // This ensures we don't try to connect to localhost
+      // Check if we have the necessary Google scopes
+      const provider = session.user?.app_metadata?.provider;
+      const hasGoogleAuth = provider === 'google';
+      
+      if (!hasGoogleAuth) {
+        console.error('User not authenticated with Google');
+        
+        // Redirect to Google auth instead of throwing an error
+        toast.info('Connecting to Google Calendar...');
+        
+        await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            scopes: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar',
+            redirectTo: `${window.location.origin}/schedule`,
+          }
+        });
+        
+        // This code won't execute as the page will redirect
+        return false;
+      }
+      
+      // Make the function call to sync calendar
       const { data, error } = await supabase.functions.invoke('sync-google-calendar', {
         body: { schedule: JSON.parse(savedSchedule) }
       });

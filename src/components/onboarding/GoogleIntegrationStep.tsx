@@ -18,7 +18,7 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
   const [isConnected, setIsConnected] = useState(false);
 
   // Add the hook
-  const { syncScheduleToGoogle } = useScheduleGeneration();
+  const { syncScheduleToGoogle, isSyncingToGoogle } = useScheduleGeneration();
 
   // Check if running in an iframe
   useEffect(() => {
@@ -54,17 +54,33 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
           }
         }
 
-        // Check for auth callback parameters
-        const params = new URLSearchParams(window.location.hash.substring(1));
-        const urlParams = new URLSearchParams(window.location.search);
+        // Check for auth callback parameters in URL
+        const hash = window.location.hash;
+        const search = window.location.search;
         
-        console.log("Hash parameters:", window.location.hash);
-        console.log("Query parameters:", window.location.search);
+        console.log("URL hash:", hash);
+        console.log("URL search params:", search);
         
-        // Check for access_token in hash or successful auth in query params
-        if (params.has('access_token') || urlParams.get('provider') === 'google') {
+        // Parse hash params if present
+        if (hash && hash.includes('access_token')) {
+          const params = new URLSearchParams(hash.substring(1));
+          if (params.has('access_token')) {
+            console.log("Access token found in URL hash");
+            setIsConnected(true);
+            toast.success('Successfully connected with Google!');
+            
+            // Wait a bit before auto-triggering sync
+            setTimeout(() => {
+              handleSyncSchedule();
+            }, 1000);
+          }
+        }
+        
+        // Check URL search params for provider
+        const urlParams = new URLSearchParams(search);
+        if (urlParams.get('provider') === 'google') {
+          console.log("Google provider detected in URL params");
           setIsConnected(true);
-          console.log("Auth callback detected, user is connected with Google");
           toast.success('Successfully connected with Google!');
           
           // Wait a bit before auto-triggering sync
@@ -96,15 +112,18 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
       setError(null);
       
       console.log('Attempting Google integration with Supabase');
+      console.log('Redirect URL set to:', `${window.location.origin}/onboarding`);
       
       // Request calendar scope explicitly
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           scopes: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar',
           redirectTo: `${window.location.origin}/onboarding`, // Redirect back to onboarding
         }
       });
+
+      console.log('Sign in response:', data);
 
       if (error) {
         console.error('Google integration error:', error);
@@ -118,6 +137,7 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('Google integration error caught:', errorMessage);
       setError(errorMessage);
       toast.error('Failed to connect with Google', {
         description: errorMessage
@@ -137,7 +157,7 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
         onComplete();
       }, 2000);
     } else {
-      console.log("Sync failed");
+      console.log("Sync failed or redirected to Google auth");
     }
   };
 
@@ -193,9 +213,9 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
             <Button 
               className="mt-3"
               onClick={handleSyncSchedule}
-              disabled={isLoading}
+              disabled={isSyncingToGoogle}
             >
-              {isLoading ? (
+              {isSyncingToGoogle ? (
                 <>Syncing your schedule...</>
               ) : (
                 <>

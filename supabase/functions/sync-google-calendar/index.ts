@@ -55,8 +55,7 @@ serve(async (req) => {
     const jwtToken = authHeader.replace('Bearer ', '');
     console.log("JWT token extracted from request");
     
-    // Verify the JWT token and get the user's access token
-    // This assumes you're using Supabase Auth and the token contains the user's Google access token
+    // Get Supabase environment variables
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
     
@@ -82,14 +81,15 @@ serve(async (req) => {
     }
     
     const userData = await userResponse.json();
-    console.log("User data retrieved from Supabase");
+    console.log("User data retrieved from Supabase", userData);
     
     // Get the user's Google access token
-    // This assumes the token is stored in the user's provider_token field
     const googleAccessToken = userData.app_metadata?.provider_token || userData.provider_token;
     
     if (!googleAccessToken) {
       console.error("No Google access token found in user data", userData);
+      console.error("app_metadata:", userData.app_metadata);
+      console.error("User is authenticated with provider:", userData.app_metadata?.provider);
       throw new Error('No Google access token found. Please reconnect your Google account.');
     }
     
