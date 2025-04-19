@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -78,12 +77,10 @@ export const useScheduleGeneration = () => {
       
       console.log('Schedule found in localStorage, preparing to sync');
       
-      // Pass the JWT token in the Authorization header
+      // Make sure we're using the full Supabase URL when calling the function
+      // This ensures we don't try to connect to localhost
       const { data, error } = await supabase.functions.invoke('sync-google-calendar', {
-        body: { schedule: JSON.parse(savedSchedule) },
-        headers: {
-          Authorization: `Bearer ${session.access_token}`
-        }
+        body: { schedule: JSON.parse(savedSchedule) }
       });
       
       if (error) {
@@ -111,7 +108,6 @@ export const useScheduleGeneration = () => {
     }
   };
 
-  // New function to add a single event
   const addEvent = async (eventData: any) => {
     try {
       console.log('Adding new event to schedule:', eventData);
@@ -127,6 +123,9 @@ export const useScheduleGeneration = () => {
       localStorage.setItem('generatedSchedule', JSON.stringify(updatedSchedule));
       
       console.log('Event added successfully, updated schedule:', updatedSchedule);
+      toast.success('Event added successfully', {
+        description: `${eventData.title} has been added to your schedule`
+      });
       
       return true;
     } catch (error) {

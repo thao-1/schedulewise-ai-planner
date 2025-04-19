@@ -14,7 +14,6 @@ interface GoogleIntegrationStepProps {
 const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isProviderEnabled, setIsProviderEnabled] = useState(true);
   const [isInIframe, setIsInIframe] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
 
@@ -34,11 +33,11 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
     }
   }, []);
 
-  // Check if Google provider is enabled when component mounts
+  // Check if the user is already authenticated with Google
   useEffect(() => {
-    const checkGoogleProvider = async () => {
+    const checkGoogleAuth = async () => {
       try {
-        console.log("Checking Google provider and auth status");
+        console.log("Checking Google authentication status");
         
         // Check if the user is already authenticated
         const { data: { session } } = await supabase.auth.getSession();
@@ -55,52 +54,31 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
           }
         }
 
-        // Attempt a small operation to see if Google provider is enabled
-        const { error } = await supabase.auth.signInWithOAuth({
-          provider: 'google',
-          options: {
-            redirectTo: `${window.location.origin}/onboarding`,
-            skipBrowserRedirect: true // Just check, don't actually redirect
-          }
-        });
-
-        // If we get a specific error about provider not enabled
-        if (error && (error.message.includes('not enabled') || error.status === 400)) {
-          setIsProviderEnabled(false);
-          setError('Google authentication is not enabled in your Supabase project. Please check your configuration.');
-          console.error("Google provider not enabled:", error.message);
+        // Check for auth callback parameters
+        const params = new URLSearchParams(window.location.hash.substring(1));
+        const urlParams = new URLSearchParams(window.location.search);
+        
+        console.log("Hash parameters:", window.location.hash);
+        console.log("Query parameters:", window.location.search);
+        
+        // Check for access_token in hash or successful auth in query params
+        if (params.has('access_token') || urlParams.get('provider') === 'google') {
+          setIsConnected(true);
+          console.log("Auth callback detected, user is connected with Google");
+          toast.success('Successfully connected with Google!');
+          
+          // Wait a bit before auto-triggering sync
+          setTimeout(() => {
+            handleSyncSchedule();
+          }, 1000);
         }
       } catch (err) {
-        console.error('Error checking Google provider:', err);
+        console.error('Error checking Google authentication:', err);
+        setError(err instanceof Error ? err.message : 'Unknown error occurred');
       }
     };
 
-    // Check if we have a Google token from auth callback
-    const checkAuthCallback = async () => {
-      console.log("Checking for auth callback parameters");
-      
-      // Check URL for auth callback parameters
-      const params = new URLSearchParams(window.location.hash.substring(1));
-      const urlParams = new URLSearchParams(window.location.search);
-      
-      console.log("Hash parameters:", window.location.hash);
-      console.log("Query parameters:", window.location.search);
-      
-      // Check for access_token in hash or successful auth in query params
-      if (params.has('access_token') || urlParams.get('provider') === 'google') {
-        setIsConnected(true);
-        console.log("Auth callback detected, user is connected with Google");
-        toast.success('Successfully connected with Google!');
-        
-        // Auto-trigger sync after successful connection
-        setTimeout(() => {
-          handleSyncSchedule();
-        }, 1000);
-      }
-    };
-
-    checkGoogleProvider();
-    checkAuthCallback();
+    checkGoogleAuth();
   }, []);
 
   const handleGoogleIntegration = async () => {
@@ -130,20 +108,12 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
 
       if (error) {
         console.error('Google integration error:', error);
-        
-        if (error.message.includes('not enabled') || error.message.includes('validation_failed') || error.status === 400) {
-          setError('Google authentication provider is not enabled or properly configured in your Supabase project. Please check your Google client configuration in the Supabase dashboard.');
-          toast.error('Google authentication is not enabled', {
-            description: 'This feature requires additional configuration in Supabase'
-          });
-        } else {
-          setError(error.message);
-          toast.error('Failed to connect with Google', {
-            description: error.message
-          });
-        }
+        setError(error.message);
+        toast.error('Failed to connect with Google', {
+          description: error.message
+        });
       } else {
-        toast.success('Successfully initiated Google Calendar connection');
+        toast.success('Connecting to Google Calendar...');
         // We don't call onComplete here as we'll be redirected to Google
       }
     } catch (error) {
@@ -207,23 +177,6 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
           <div>
             <p className="text-red-800 font-medium">Google Integration Error</p>
             <p className="text-red-600 text-sm">{error}</p>
-            <p className="text-red-600 text-sm mt-2">
-              Note: Google integration requires proper configuration in Supabase.
-              You can still use ScheduleWise without Google Calendar integration.
-            </p>
-            {!isProviderEnabled && (
-              <div className="mt-3 p-3 bg-red-100 rounded-md">
-                <p className="text-red-800 text-sm font-medium">Administrator Action Required:</p>
-                <p className="text-red-700 text-sm">
-                  Enable Google provider in Supabase Authentication settings and ensure the 
-                  Google client ID and secret are correctly configured.
-                </p>
-                <p className="text-red-700 text-sm mt-2">
-                  Make sure <strong>X-Frame-Options</strong> is set to <strong>DENY</strong> in your Supabase project settings
-                  to prevent iframe embedding issues.
-                </p>
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -257,7 +210,7 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
         <div className="flex gap-4">
           <Button 
             onClick={handleGoogleIntegration} 
-            disabled={isLoading || !isProviderEnabled || isInIframe}
+            disabled={isLoading || isInIframe}
           >
             {isLoading ? 'Connecting...' : 'Connect Google Calendar'}
           </Button>
