@@ -57,19 +57,26 @@ export const useScheduleGeneration = () => {
 
   const syncScheduleToGoogle = async () => {
     setIsSyncingToGoogle(true);
+    console.log('Starting Google Calendar sync process');
     
     try {
       // Check if user is authenticated
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
+        console.error('No active session found');
         throw new Error('You must be logged in to sync with Google Calendar');
       }
+      
+      console.log('User authenticated, session found');
       
       // Get the schedule from localStorage
       const savedSchedule = localStorage.getItem('generatedSchedule');
       if (!savedSchedule) {
+        console.error('No schedule found in localStorage');
         throw new Error('No schedule found to sync');
       }
+      
+      console.log('Schedule found in localStorage, preparing to sync');
       
       // Pass the JWT token in the Authorization header
       const { data, error } = await supabase.functions.invoke('sync-google-calendar', {
@@ -80,8 +87,11 @@ export const useScheduleGeneration = () => {
       });
       
       if (error) {
+        console.error('Edge function error:', error);
         throw new Error(error.message || 'Failed to sync with Google Calendar');
       }
+      
+      console.log('Google Calendar sync response:', data);
       
       toast.success('Schedule successfully synced with Google Calendar!', {
         description: `${data?.eventsAdded || 0} events added to your calendar`
@@ -101,11 +111,41 @@ export const useScheduleGeneration = () => {
     }
   };
 
+  // New function to add a single event
+  const addEvent = async (eventData: any) => {
+    try {
+      console.log('Adding new event to schedule:', eventData);
+      
+      // Get the current schedule from localStorage
+      const savedSchedule = localStorage.getItem('generatedSchedule');
+      const currentSchedule = savedSchedule ? JSON.parse(savedSchedule) : [];
+      
+      // Add the new event to the schedule
+      const updatedSchedule = [...currentSchedule, eventData];
+      
+      // Save the updated schedule back to localStorage
+      localStorage.setItem('generatedSchedule', JSON.stringify(updatedSchedule));
+      
+      console.log('Event added successfully, updated schedule:', updatedSchedule);
+      
+      return true;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('Error adding event:', errorMessage);
+      
+      toast.error('Failed to add event', {
+        description: errorMessage
+      });
+      return false;
+    }
+  };
+
   return {
     generateSchedule,
     isGenerating,
     generationError,
     syncScheduleToGoogle,
-    isSyncingToGoogle
+    isSyncingToGoogle,
+    addEvent
   };
 };

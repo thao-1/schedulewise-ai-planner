@@ -17,19 +17,20 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
   const [isProviderEnabled, setIsProviderEnabled] = useState(true);
   const [isInIframe, setIsInIframe] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
-  const [syncingSchedule, setSyncingSchedule] = useState(false);
 
   // Add the hook
-  const { syncScheduleToGoogle, isSyncingToGoogle } = useScheduleGeneration();
+  const { syncScheduleToGoogle } = useScheduleGeneration();
 
   // Check if running in an iframe
   useEffect(() => {
     try {
       setIsInIframe(window.self !== window.top);
+      console.log("Iframe detection: ", window.self !== window.top);
     } catch (e) {
       // If we can't access window.top due to security restrictions,
       // we're probably in an iframe
       setIsInIframe(true);
+      console.log("Access to parent window restricted, assuming iframe");
     }
   }, []);
 
@@ -37,13 +38,20 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
   useEffect(() => {
     const checkGoogleProvider = async () => {
       try {
+        console.log("Checking Google provider and auth status");
+        
         // Check if the user is already authenticated
         const { data: { session } } = await supabase.auth.getSession();
+        console.log("Current session:", session ? "Found" : "None");
+        
         if (session) {
           // Check if the provider is google
           const provider = session.user?.app_metadata?.provider;
+          console.log("Auth provider:", provider);
+          
           if (provider === 'google') {
             setIsConnected(true);
+            console.log("Google connection detected");
           }
         }
 
@@ -60,6 +68,7 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
         if (error && (error.message.includes('not enabled') || error.status === 400)) {
           setIsProviderEnabled(false);
           setError('Google authentication is not enabled in your Supabase project. Please check your configuration.');
+          console.error("Google provider not enabled:", error.message);
         }
       } catch (err) {
         console.error('Error checking Google provider:', err);
@@ -68,13 +77,19 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
 
     // Check if we have a Google token from auth callback
     const checkAuthCallback = async () => {
+      console.log("Checking for auth callback parameters");
+      
       // Check URL for auth callback parameters
       const params = new URLSearchParams(window.location.hash.substring(1));
       const urlParams = new URLSearchParams(window.location.search);
       
+      console.log("Hash parameters:", window.location.hash);
+      console.log("Query parameters:", window.location.search);
+      
       // Check for access_token in hash or successful auth in query params
       if (params.has('access_token') || urlParams.get('provider') === 'google') {
         setIsConnected(true);
+        console.log("Auth callback detected, user is connected with Google");
         toast.success('Successfully connected with Google!');
         
         // Auto-trigger sync after successful connection
@@ -143,12 +158,16 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
   };
 
   const handleSyncSchedule = async () => {
+    console.log("Attempting to sync schedule to Google Calendar");
     const success = await syncScheduleToGoogle();
     if (success) {
+      console.log("Sync successful, completing step");
       // Wait a moment before completing to let the user see the success message
       setTimeout(() => {
         onComplete();
       }, 2000);
+    } else {
+      console.log("Sync failed");
     }
   };
 
@@ -221,9 +240,9 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
             <Button 
               className="mt-3"
               onClick={handleSyncSchedule}
-              disabled={syncingSchedule}
+              disabled={isLoading}
             >
-              {syncingSchedule ? (
+              {isLoading ? (
                 <>Syncing your schedule...</>
               ) : (
                 <>

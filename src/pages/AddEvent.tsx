@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Card, 
@@ -22,18 +22,68 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Calendar as CalendarPicker } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Clock } from 'lucide-react';
+import { CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { useScheduleGeneration } from '@/hooks/useScheduleGeneration';
 
 const AddEvent = () => {
   const navigate = useNavigate();
-  const [date, setDate] = React.useState<Date>(new Date());
+  const { addEvent } = useScheduleGeneration();
+  const [date, setDate] = useState<Date>(new Date());
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [hour, setHour] = useState('9');
+  const [minute, setMinute] = useState('00');
+  const [ampm, setAmpm] = useState('am');
+  const [duration, setDuration] = useState('1');
+  const [eventType, setEventType] = useState('meeting');
+  const [priority, setPriority] = useState('medium');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success('Event added successfully!');
-    navigate('/schedule');
+    setIsSubmitting(true);
+    
+    try {
+      // Convert time to 24-hour format
+      let hourNum = parseInt(hour);
+      if (ampm === 'pm' && hourNum < 12) hourNum += 12;
+      if (ampm === 'am' && hourNum === 12) hourNum = 0;
+      
+      // Calculate the day of week (0 = Sunday, 1 = Monday, etc.)
+      const dayOfWeek = date.getDay();
+      
+      // Create the event object
+      const newEvent = {
+        title,
+        day: dayOfWeek,
+        hour: hourNum + (parseInt(minute) / 60),
+        duration: parseFloat(duration),
+        type: eventType,
+        description,
+        priority
+      };
+      
+      console.log('Submitting new event:', newEvent);
+      
+      // Add the event to the schedule
+      const success = await addEvent(newEvent);
+      
+      if (success) {
+        toast.success('Event added successfully!');
+        navigate('/schedule');
+      } else {
+        toast.error('Failed to add event');
+      }
+    } catch (error) {
+      console.error('Error adding event:', error);
+      toast.error('Failed to add event', { 
+        description: error instanceof Error ? error.message : 'Unknown error occurred'
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -49,7 +99,13 @@ const AddEvent = () => {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="title">Event Title</Label>
-              <Input id="title" placeholder="Enter event title" required />
+              <Input 
+                id="title" 
+                placeholder="Enter event title" 
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                required 
+              />
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -79,20 +135,20 @@ const AddEvent = () => {
               <div className="space-y-2">
                 <Label htmlFor="time">Event Time</Label>
                 <div className="flex">
-                  <Select defaultValue="9">
+                  <Select value={hour} onValueChange={setHour}>
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Hour" />
                     </SelectTrigger>
                     <SelectContent>
-                      {Array.from({ length: 12 }, (_, i) => i + 1).map((hour) => (
-                        <SelectItem key={hour} value={hour.toString()}>
-                          {hour}
+                      {Array.from({ length: 12 }, (_, i) => i + 1).map((hourVal) => (
+                        <SelectItem key={hourVal} value={hourVal.toString()}>
+                          {hourVal}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                   <span className="mx-2 flex items-center">:</span>
-                  <Select defaultValue="00">
+                  <Select value={minute} onValueChange={setMinute}>
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Minute" />
                     </SelectTrigger>
@@ -103,7 +159,7 @@ const AddEvent = () => {
                       <SelectItem value="45">45</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Select defaultValue="am">
+                  <Select value={ampm} onValueChange={setAmpm}>
                     <SelectTrigger className="w-24 ml-2">
                       <SelectValue placeholder="AM/PM" />
                     </SelectTrigger>
@@ -118,7 +174,7 @@ const AddEvent = () => {
             
             <div className="space-y-2">
               <Label htmlFor="duration">Duration (hours)</Label>
-              <Select defaultValue="1">
+              <Select value={duration} onValueChange={setDuration}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select duration" />
                 </SelectTrigger>
@@ -137,7 +193,7 @@ const AddEvent = () => {
             
             <div className="space-y-2">
               <Label htmlFor="type">Event Type</Label>
-              <Select defaultValue="meeting">
+              <Select value={eventType} onValueChange={setEventType}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select event type" />
                 </SelectTrigger>
@@ -148,6 +204,9 @@ const AddEvent = () => {
                   <SelectItem value="meals">Meals</SelectItem>
                   <SelectItem value="learning">Learning</SelectItem>
                   <SelectItem value="relaxation">Relaxation</SelectItem>
+                  <SelectItem value="work">Work</SelectItem>
+                  <SelectItem value="commute">Commute</SelectItem>
+                  <SelectItem value="sleep">Sleep</SelectItem>
                   <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
               </Select>
@@ -155,12 +214,17 @@ const AddEvent = () => {
             
             <div className="space-y-2">
               <Label htmlFor="description">Description (optional)</Label>
-              <Textarea id="description" placeholder="Add event details here..." />
+              <Textarea 
+                id="description" 
+                placeholder="Add event details here..." 
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
             </div>
             
             <div className="space-y-2">
               <Label htmlFor="priority">Priority</Label>
-              <Select defaultValue="medium">
+              <Select value={priority} onValueChange={setPriority}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select priority" />
                 </SelectTrigger>
@@ -176,7 +240,9 @@ const AddEvent = () => {
             <Button variant="outline" type="button" onClick={() => navigate('/schedule')}>
               Cancel
             </Button>
-            <Button type="submit">Add Event</Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? 'Adding...' : 'Add Event'}
+            </Button>
           </CardFooter>
         </form>
       </Card>
