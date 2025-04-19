@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   Card, 
@@ -57,9 +56,12 @@ const Dashboard = () => {
   }, []);
   
   const calculateMetrics = (schedule: any[]) => {
+    if (!schedule || schedule.length === 0) return;
+    
     // Deep Work Hours calculation
     const deepWorkEvents = schedule.filter(event => 
-      event.type === 'deep-work' || event.title.toLowerCase().includes('deep work')
+      event.type === 'deep-work' || 
+      event.title.toLowerCase().includes('deep work')
     );
     
     const deepWorkHours = deepWorkEvents.reduce((total, event) => 
@@ -340,86 +342,21 @@ const Dashboard = () => {
         </CardHeader>
         <CardContent className="p-6">
           {scheduleData.length > 0 ? (
-            <>
-              <div className="flex justify-center mb-6">
-                <div className="w-full max-w-md h-48 bg-accent rounded-lg p-4">
-                  <div className="flex h-full rounded-md overflow-hidden">
-                    {window.workLifeBalanceData && (
-                      <>
-                        <div 
-                          className="bg-indigo-400 h-full" 
-                          style={{ width: `${window.workLifeBalanceData.work}%` }}
-                          title={`Work: ${window.workLifeBalanceData.work}%`}
-                        />
-                        <div 
-                          className="bg-green-400 h-full" 
-                          style={{ width: `${window.workLifeBalanceData.personal}%` }}
-                          title={`Personal: ${window.workLifeBalanceData.personal}%`}
-                        />
-                        <div 
-                          className="bg-yellow-400 h-full" 
-                          style={{ width: `${window.workLifeBalanceData.learning}%` }}
-                          title={`Health: ${window.workLifeBalanceData.learning}%`}
-                        />
-                        <div 
-                          className="bg-purple-400 h-full" 
-                          style={{ width: `${window.workLifeBalanceData.rest}%` }}
-                          title={`Rest: ${window.workLifeBalanceData.rest}%`}
-                        />
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-4 gap-2 md:gap-4">
-                <div className="flex flex-col items-center p-2 bg-blue-100 rounded-md">
-                  <span className="font-medium">Work</span>
-                  <span className="text-xl font-bold">{window.workLifeBalanceData?.work || 0}%</span>
-                </div>
-                <div className="flex flex-col items-center p-2 bg-green-100 rounded-md">
-                  <span className="font-medium">Personal</span>
-                  <span className="text-xl font-bold">{window.workLifeBalanceData?.personal || 0}%</span>
-                </div>
-                <div className="flex flex-col items-center p-2 bg-yellow-100 rounded-md">
-                  <span className="font-medium">Health</span>
-                  <span className="text-xl font-bold">{window.workLifeBalanceData?.learning || 0}%</span>
-                </div>
-                <div className="flex flex-col items-center p-2 bg-purple-100 rounded-md">
-                  <span className="font-medium">Rest</span>
-                  <span className="text-xl font-bold">{window.workLifeBalanceData?.rest || 0}%</span>
-                </div>
-              </div>
-            </>
+            <div className="flex justify-center">
+              <img 
+                src="https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80" 
+                alt="Work-life balance" 
+                className="rounded-lg max-h-64 object-cover"
+              />
+            </div>
           ) : (
-            <>
-              <div className="flex justify-center mb-6">
-                <img 
-                  src="https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80" 
-                  alt="Work-life balance" 
-                  className="rounded-lg max-h-64 object-cover"
-                />
-              </div>
-              
-              <div className="grid grid-cols-4 gap-2 md:gap-4">
-                <div className="flex flex-col items-center p-2 bg-blue-100 rounded-md">
-                  <span className="font-medium">Work</span>
-                  <span className="text-xl font-bold">40%</span>
-                </div>
-                <div className="flex flex-col items-center p-2 bg-green-100 rounded-md">
-                  <span className="font-medium">Personal</span>
-                  <span className="text-xl font-bold">30%</span>
-                </div>
-                <div className="flex flex-col items-center p-2 bg-yellow-100 rounded-md">
-                  <span className="font-medium">Health</span>
-                  <span className="text-xl font-bold">15%</span>
-                </div>
-                <div className="flex flex-col items-center p-2 bg-purple-100 rounded-md">
-                  <span className="font-medium">Rest</span>
-                  <span className="text-xl font-bold">15%</span>
-                </div>
-              </div>
-            </>
+            <div className="flex justify-center">
+              <img 
+                src="https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80" 
+                alt="Work-life balance" 
+                className="rounded-lg max-h-64 object-cover"
+              />
+            </div>
           )}
         </CardContent>
       </Card>
