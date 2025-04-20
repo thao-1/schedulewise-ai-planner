@@ -90,13 +90,21 @@ const Dashboard = () => {
     const workHours = workEvents.reduce((total, event) => total + event.duration, 0);
     const personalHours = personalEvents.reduce((total, event) => total + event.duration, 0);
     
-    // Calculate work percentage
+    // Calculate work percentages (this will be used for the global window property)
     const workPercentage = totalEventHours > 0 ? Math.round((workHours / totalEventHours) * 100) : 0;
     const personalPercentage = totalEventHours > 0 ? Math.round((personalHours / totalEventHours) * 100) : 0;
     const learningEvents = schedule.filter(event => event.type === 'learning');
     const learningPercentage = totalEventHours > 0 ? Math.round((learningEvents.reduce((total, event) => total + event.duration, 0) / totalEventHours) * 100) : 0;
     const restEvents = schedule.filter(event => event.type === 'sleep' || event.type === 'relaxation');
     const restPercentage = totalEventHours > 0 ? Math.round((restEvents.reduce((total, event) => total + event.duration, 0) / totalEventHours) * 100) : 0;
+    
+    // Set work-life balance percentages for the global window property
+    window.workLifeBalanceData = {
+      work: workPercentage,
+      personal: personalPercentage,
+      learning: learningPercentage,
+      rest: restPercentage
+    };
     
     // Productivity score - a simple metric based on deep work time and overall schedule balance
     const balanceScore = Math.min(100, Math.max(0, 100 - Math.abs(workPercentage - 40)));
@@ -115,14 +123,6 @@ const Dashboard = () => {
       { name: 'Productivity Score', value: `${productivityScore}%`, icon: BarChart3, color: 'bg-green-100' },
       { name: 'Work-Life Balance', value: balanceRating, icon: Award, color: 'bg-purple-100' },
     ]);
-    
-    // Set work-life balance percentages for the chart at the bottom
-    window.workLifeBalanceData = {
-      work: workPercentage,
-      personal: personalPercentage,
-      learning: learningPercentage,
-      rest: restPercentage
-    };
   };
   
   const getUpcomingEvents = (schedule: any[]) => {
@@ -334,7 +334,7 @@ const Dashboard = () => {
         </Card>
       </div>
 
-      {/* Work-life balance section */}
+      {/* Work-Life Balance section */}
       <Card className="schedule-card">
         <CardHeader>
           <CardTitle>Work-Life Balance</CardTitle>
@@ -342,12 +342,32 @@ const Dashboard = () => {
         </CardHeader>
         <CardContent className="p-6">
           {scheduleData.length > 0 ? (
-            <div className="flex justify-center">
+            <div className="flex flex-col items-center">
               <img 
                 src="https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80" 
                 alt="Work-life balance" 
-                className="rounded-lg max-h-64 object-cover"
+                className="rounded-lg max-h-64 object-cover mb-4"
               />
+              {window.workLifeBalanceData && (
+                <div className="grid grid-cols-2 gap-4 w-full max-w-md">
+                  <div className="bg-green-100 p-3 rounded-lg text-center">
+                    <p className="text-sm font-medium">Work</p>
+                    <p className="text-xl font-bold">{window.workLifeBalanceData.work}%</p>
+                  </div>
+                  <div className="bg-blue-100 p-3 rounded-lg text-center">
+                    <p className="text-sm font-medium">Personal</p>
+                    <p className="text-xl font-bold">{window.workLifeBalanceData.personal}%</p>
+                  </div>
+                  <div className="bg-purple-100 p-3 rounded-lg text-center">
+                    <p className="text-sm font-medium">Learning</p>
+                    <p className="text-xl font-bold">{window.workLifeBalanceData.learning}%</p>
+                  </div>
+                  <div className="bg-yellow-100 p-3 rounded-lg text-center">
+                    <p className="text-sm font-medium">Rest</p>
+                    <p className="text-xl font-bold">{window.workLifeBalanceData.rest}%</p>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="flex justify-center">
