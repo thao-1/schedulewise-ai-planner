@@ -38,10 +38,8 @@ const Dashboard = () => {
           const parsedSchedule = JSON.parse(savedSchedule);
           setScheduleData(parsedSchedule);
           
-          // Calculate metrics
           calculateMetrics(parsedSchedule);
           
-          // Get upcoming events
           getUpcomingEvents(parsedSchedule);
         }
         
@@ -58,7 +56,6 @@ const Dashboard = () => {
   const calculateMetrics = (schedule: any[]) => {
     if (!schedule || schedule.length === 0) return;
     
-    // Deep Work Hours calculation
     const deepWorkEvents = schedule.filter(event => 
       event.type === 'deep-work' || 
       event.title.toLowerCase().includes('deep work')
@@ -67,10 +64,8 @@ const Dashboard = () => {
     const deepWorkHours = deepWorkEvents.reduce((total, event) => 
       total + event.duration, 0);
     
-    // Weekly Events count
     const eventCount = schedule.length;
     
-    // Work-Life Balance calculation
     const workEvents = schedule.filter(event => 
       ['work', 'deep-work', 'meeting'].includes(event.type) || 
       event.title.toLowerCase().includes('work') || 
@@ -90,7 +85,6 @@ const Dashboard = () => {
     const workHours = workEvents.reduce((total, event) => total + event.duration, 0);
     const personalHours = personalEvents.reduce((total, event) => total + event.duration, 0);
     
-    // Calculate work percentages (this will be used for the global window property)
     const workPercentage = totalEventHours > 0 ? Math.round((workHours / totalEventHours) * 100) : 0;
     const personalPercentage = totalEventHours > 0 ? Math.round((personalHours / totalEventHours) * 100) : 0;
     const learningEvents = schedule.filter(event => event.type === 'learning');
@@ -98,7 +92,6 @@ const Dashboard = () => {
     const restEvents = schedule.filter(event => event.type === 'sleep' || event.type === 'relaxation');
     const restPercentage = totalEventHours > 0 ? Math.round((restEvents.reduce((total, event) => total + event.duration, 0) / totalEventHours) * 100) : 0;
     
-    // Set work-life balance percentages for the global window property
     window.workLifeBalanceData = {
       work: workPercentage,
       personal: personalPercentage,
@@ -106,13 +99,11 @@ const Dashboard = () => {
       rest: restPercentage
     };
     
-    // Productivity score - a simple metric based on deep work time and overall schedule balance
     const balanceScore = Math.min(100, Math.max(0, 100 - Math.abs(workPercentage - 40)));
-    const deepWorkScore = Math.min(100, (deepWorkHours / 15) * 100); // Assuming 15 hours of deep work per week is optimal
+    const deepWorkScore = Math.min(100, (deepWorkHours / 15) * 100);
     const productivityScore = Math.round((balanceScore * 0.4) + (deepWorkScore * 0.6));
     
-    // Work-life balance rating
-    let balanceRating = 'Poor';
+    const balanceRating = 'Poor';
     if (balanceScore >= 80) balanceRating = 'Excellent';
     else if (balanceScore >= 60) balanceRating = 'Good';
     else if (balanceScore >= 40) balanceRating = 'Average';
@@ -126,18 +117,14 @@ const Dashboard = () => {
   };
   
   const getUpcomingEvents = (schedule: any[]) => {
-    // Get today's date and day of week (0-6, where 0 is Sunday)
     const today = new Date();
-    const currentDay = today.getDay(); // 0 is Sunday, 1 is Monday, etc.
+    const currentDay = today.getDay();
     const currentHour = today.getHours() + (today.getMinutes() / 60);
     
-    // Filter events for today and upcoming
     const todayEvents = schedule.filter(event => event.day === currentDay && (event.hour + event.duration) > currentHour);
     const sortedEvents = todayEvents.sort((a, b) => a.hour - b.hour);
     
-    // Just take the next 4 events
     const upcomingEvents = sortedEvents.slice(0, 4).map(event => {
-      // Format the time
       const hour = Math.floor(event.hour);
       const minute = Math.round((event.hour - hour) * 60);
       const period = hour >= 12 ? 'PM' : 'AM';
@@ -153,7 +140,6 @@ const Dashboard = () => {
       };
     });
     
-    // If we have less than 4 events today, look for events in the coming days
     if (upcomingEvents.length < 4) {
       for (let nextDay = 1; nextDay <= 6; nextDay++) {
         if (upcomingEvents.length >= 4) break;
@@ -222,7 +208,6 @@ const Dashboard = () => {
         </Button>
       </div>
 
-      {/* Stats section */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
           <Card key={stat.name} className="schedule-card">
@@ -241,7 +226,6 @@ const Dashboard = () => {
         ))}
       </div>
 
-      {/* Visualization section */}
       <div className="grid gap-6 md:grid-cols-2">
         <Card className="col-span-1 schedule-card">
           <CardHeader>
@@ -279,7 +263,7 @@ const Dashboard = () => {
                 </div>
               ) : (
                 <img 
-                  src="https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2072&q=80" 
+                  src="/lovable-uploads/3aa6efcf-89c0-4862-b227-d418a906cf38.png" 
                   alt="Schedule visualization" 
                   className="rounded-lg max-h-64 object-cover"
                 />
@@ -334,7 +318,6 @@ const Dashboard = () => {
         </Card>
       </div>
 
-      {/* Work-Life Balance section */}
       <Card className="schedule-card">
         <CardHeader>
           <CardTitle>Work-Life Balance</CardTitle>
@@ -384,7 +367,6 @@ const Dashboard = () => {
   );
 };
 
-// Add a global property to Window interface
 declare global {
   interface Window {
     workLifeBalanceData?: {
