@@ -327,7 +327,7 @@ const Dashboard = () => {
           {scheduleData.length > 0 ? (
             <div className="flex flex-col items-center">
               <img 
-                src="https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80" 
+                src="/lovable-uploads/ca5064cf-ef84-493a-b37a-20ba809b1c61.png" 
                 alt="Work-life balance" 
                 className="rounded-lg max-h-64 object-cover mb-4"
               />
@@ -355,7 +355,7 @@ const Dashboard = () => {
           ) : (
             <div className="flex justify-center">
               <img 
-                src="https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80" 
+                src="/lovable-uploads/ca5064cf-ef84-493a-b37a-20ba809b1c61.png" 
                 alt="Work-life balance" 
                 className="rounded-lg max-h-64 object-cover"
               />

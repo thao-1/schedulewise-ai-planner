@@ -1,250 +1,108 @@
 import React, { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { AlertCircle, Calendar, Check } from 'lucide-react';
-import { useScheduleGeneration } from '@/hooks/useScheduleGeneration';
+import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { useToast } from "@/components/ui/use-toast"
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useMutation } from 'react-query';
+import { generateSchedule } from '@/api/schedule';
+import { useAuth } from '@/contexts/AuthContext';
+
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+const GOOGLE_SCOPES = [
+  'https://www.googleapis.com/auth/calendar', // Use a single string instead of array
+  'https://www.googleapis.com/auth/userinfo.email',
+  'https://www.googleapis.com/auth/userinfo.profile'
+].join(' '); // Join scopes with a space
 
 interface GoogleIntegrationStepProps {
-  onComplete: () => void;
-  onSkip: () => void;
+  onScheduleGenerated: (schedule: any) => void;
 }
 
-const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProps) => {
+const GoogleIntegrationStep: React.FC<GoogleIntegrationStepProps> = ({ onScheduleGenerated }) => {
+  const [googleAuthUrl, setGoogleAuthUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isInIframe, setIsInIframe] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
+  const searchParams = useSearchParams()[0];
+  const navigate = useNavigate();
+	const { toast } = useToast();
+  const { user } = useAuth();
 
-  // Add the hook
-  const { syncScheduleToGoogle, isSyncingToGoogle } = useScheduleGeneration();
+  const mutation = useMutation(generateSchedule, {
+    onSuccess: (data) => {
+      localStorage.setItem('generatedSchedule', JSON.stringify(data));
+      onScheduleGenerated(data);
+			toast({
+				title: "Schedule Generated",
+				description: "Your schedule has been generated successfully.",
+			})
+      navigate('/dashboard');
+    },
+    onError: (error: any) => {
+      console.error("Failed to generate schedule:", error);
+			toast({
+				variant: "destructive",
+				title: "Uh oh! Something went wrong.",
+				description: "Failed to generate schedule. Please try again.",
+			})
+    },
+  });
 
-  // Check if running in an iframe
   useEffect(() => {
-    try {
-      setIsInIframe(window.self !== window.top);
-      console.log("Iframe detection: ", window.self !== window.top);
-    } catch (e) {
-      // If we can't access window.top due to security restrictions,
-      // we're probably in an iframe
-      setIsInIframe(true);
-      console.log("Access to parent window restricted, assuming iframe");
-    }
-  }, []);
-
-  // Check if the user is already authenticated with Google
-  useEffect(() => {
-    const checkGoogleAuth = async () => {
+    const generateAuthUrl = () => {
+      setIsLoading(true);
       try {
-        console.log("Checking Google authentication status");
-        
-        // Check if the user is already authenticated
-        const { data: { session } } = await supabase.auth.getSession();
-        console.log("Current session:", session ? "Found" : "None");
-        
-        if (session) {
-          // Check if the provider is google
-          const provider = session.user?.app_metadata?.provider;
-          console.log("Auth provider:", provider);
-          
-          if (provider === 'google') {
-            setIsConnected(true);
-            console.log("Google connection detected");
-          }
-        }
-
-        // Check for auth callback parameters in URL
-        const hash = window.location.hash;
-        const search = window.location.search;
-        
-        console.log("URL hash:", hash);
-        console.log("URL search params:", search);
-        
-        // Parse hash params if present
-        if (hash && hash.includes('access_token')) {
-          const params = new URLSearchParams(hash.substring(1));
-          if (params.has('access_token')) {
-            console.log("Access token found in URL hash");
-            setIsConnected(true);
-            toast.success('Successfully connected with Google!');
-            
-            // Wait a bit before auto-triggering sync
-            setTimeout(() => {
-              handleSyncSchedule();
-            }, 1000);
-          }
-        }
-        
-        // Check URL search params for provider
-        const urlParams = new URLSearchParams(search);
-        if (urlParams.get('provider') === 'google') {
-          console.log("Google provider detected in URL params");
-          setIsConnected(true);
-          toast.success('Successfully connected with Google!');
-          
-          // Wait a bit before auto-triggering sync
-          setTimeout(() => {
-            handleSyncSchedule();
-          }, 1000);
-        }
-      } catch (err) {
-        console.error('Error checking Google authentication:', err);
-        setError(err instanceof Error ? err.message : 'Unknown error occurred');
+        const redirectUri = `${window.location.origin}/onboarding`;
+        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${redirectUri}&response_type=code&scope=${GOOGLE_SCOPES}`;
+        setGoogleAuthUrl(authUrl);
+      } catch (error) {
+        console.error("Failed to generate Google Auth URL:", error);
+      } finally {
+        setIsLoading(false);
       }
     };
 
-    checkGoogleAuth();
+    generateAuthUrl();
   }, []);
 
-  const handleGoogleIntegration = async () => {
-    try {
-      // If we're in an iframe, we need to alert the user
-      if (isInIframe) {
-        setError('Google authentication cannot run in an iframe. Please open this page directly in a new tab.');
-        toast.error('Cannot authenticate in iframe', {
-          description: 'Please open this page in a new browser tab to connect with Google.'
-        });
-        return;
-      }
-
+  useEffect(() => {
+    const code = searchParams.get('code');
+    if (code) {
       setIsLoading(true);
-      setError(null);
-      
-      console.log('Attempting Google integration with Supabase');
-      console.log('Redirect URL set to:', `${window.location.origin}/onboarding`);
-      
-      // Add multiple comprehensive calendar scopes
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          // Add multiple comprehensive calendar scopes
-          scopes: [
-            'https://www.googleapis.com/auth/calendar.events', // Read/write events
-            'https://www.googleapis.com/auth/calendar', // Full calendar access
-            'https://www.googleapis.com/auth/userinfo.email', // User email
-            'https://www.googleapis.com/auth/userinfo.profile' // User profile
-          ],
-          redirectTo: `${window.location.origin}/onboarding`,
-        }
-      });
-
-      console.log('Sign in response:', data);
-
-      if (error) {
-        console.error('Google integration error:', error);
-        setError(error.message);
-        toast.error('Failed to connect with Google', {
-          description: error.message
-        });
-      } else {
-        toast.success('Connecting to Google Calendar...');
-        // We don't call onComplete here as we'll be redirected to Google
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      console.error('Google integration error caught:', errorMessage);
-      setError(errorMessage);
-      toast.error('Failed to connect with Google', {
-        description: errorMessage
-      });
-    } finally {
+      mutation.mutate({ googleAuthCode: code, userId: user?.id });
       setIsLoading(false);
     }
-  };
-
-  const handleSyncSchedule = async () => {
-    console.log("Attempting to sync schedule to Google Calendar");
-    const success = await syncScheduleToGoogle();
-    if (success) {
-      console.log("Sync successful, completing step");
-      // Wait a moment before completing to let the user see the success message
-      setTimeout(() => {
-        onComplete();
-      }, 2000);
-    } else {
-      console.log("Sync failed or redirected to Google auth");
-    }
-  };
+  }, [searchParams, mutation, user]);
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-2">
-        <h3 className="text-lg font-medium">Integrate ScheduleWise with Google</h3>
-        <p className="text-muted-foreground">
-          Connect your Google Calendar to automatically sync your schedule
-        </p>
-      </div>
-      
-      {isInIframe && (
-        <div className="p-4 bg-orange-50 border border-orange-200 rounded-md flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-orange-500 mt-0.5" />
-          <div>
-            <p className="text-orange-800 font-medium">Cannot authenticate in iframe</p>
-            <p className="text-orange-600 text-sm">
-              Google authentication will not work in an iframe for security reasons. 
-              Please open this page directly in a new browser tab.
-            </p>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="mt-2"
-              onClick={() => window.open(window.location.href, '_blank')}
-            >
-              Open in new tab
-            </Button>
-          </div>
+    <Card className="w-[400px]">
+      <CardHeader>
+        <CardTitle>Integrate with Google Calendar</CardTitle>
+        <CardDescription>Connect your Google Calendar to automatically sync your schedule.</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        <div className="grid gap-2">
+          <Label htmlFor="email">Authorization</Label>
+          <Input type="text" id="email" value={googleAuthUrl ? 'Authorized' : 'Not Authorized'} readOnly />
         </div>
-      )}
-      
-      {error && !isInIframe && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-md flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-red-500 mt-0.5" />
-          <div>
-            <p className="text-red-800 font-medium">Google Integration Error</p>
-            <p className="text-red-600 text-sm">{error}</p>
-          </div>
-        </div>
-      )}
-      
-      {isConnected ? (
-        <div className="p-4 bg-green-50 border border-green-200 rounded-md flex items-start gap-3">
-          <Check className="h-5 w-5 text-green-500 mt-0.5" />
-          <div>
-            <p className="text-green-800 font-medium">Successfully connected with Google!</p>
-            <p className="text-green-600 text-sm">
-              You can now sync your ScheduleWise calendar with Google Calendar.
-            </p>
-            
-            <Button 
-              className="mt-3"
-              onClick={handleSyncSchedule}
-              disabled={isSyncingToGoogle}
-            >
-              {isSyncingToGoogle ? (
-                <>Syncing your schedule...</>
-              ) : (
-                <>
-                  <Calendar className="mr-2 h-4 w-4" />
-                  Sync Schedule to Google Calendar
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <div className="flex gap-4">
-          <Button 
-            onClick={handleGoogleIntegration} 
-            disabled={isLoading || isInIframe}
-          >
-            {isLoading ? 'Connecting...' : 'Connect Google Calendar'}
-          </Button>
-          <Button variant="outline" onClick={onSkip}>
-            Skip for now
-          </Button>
-        </div>
-      )}
-    </div>
+      </CardContent>
+      <CardFooter>
+        <Button disabled={isLoading} onClick={() => {
+          if (googleAuthUrl) {
+            window.location.href = googleAuthUrl;
+          }
+        }}>
+          {isLoading ? 'Loading ...' : 'Authorize Google Calendar'}
+        </Button>
+      </CardFooter>
+    </Card>
   );
 };
 

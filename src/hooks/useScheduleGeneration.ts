@@ -1,171 +1,161 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { useState, useCallback } from 'react';
+import { useToast } from "@/components/ui/use-toast"
+import { EventInput } from '@fullcalendar/core';
+import { useMutation } from '@tanstack/react-query';
+import { google } from 'googleapis';
 
-export const useScheduleGeneration = () => {
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generationError, setGenerationError] = useState<string | null>(null);
-  const [isSyncingToGoogle, setIsSyncingToGoogle] = useState(false);
-  const [isGoogleConnected, setIsGoogleConnected] = useState(false);
+const GOOGLE_SCOPES = [
+  'https://www.googleapis.com/auth/calendar', // Use a single string instead of array
+  'https://www.googleapis.com/auth/userinfo.email',
+  'https://www.googleapis.com/auth/userinfo.profile'
+].join(' '); // Join scopes with a space
 
-  useEffect(() => {
-    const checkGoogleAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user?.app_metadata?.provider === 'google') {
-        setIsGoogleConnected(true);
-      }
-    };
-    
-    checkGoogleAuth();
-  }, []);
+interface ScheduleGenerationParams {
+  apiKey: string;
+  prompt: string;
+  email: string;
+  timezone: string;
+  onSuccess?: (schedule: any) => void;
+  onError?: (error: any) => void;
+}
 
-  const generateSchedule = async (preferences: any) => {
-    setIsGenerating(true);
-    setGenerationError(null);
-    
-    try {
-      toast.info('Generating your personalized schedule...', {
-        description: 'This may take up to 30 seconds',
-        duration: 5000
-      });
-      
-      console.log('Sending preferences to generate schedule:', preferences);
-      
-      const { data, error } = await supabase.functions.invoke('generate-schedule', {
-        body: { preferences }
-      });
+const useScheduleGeneration = () => {
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
 
-      if (error) {
-        console.error('Supabase function error:', error);
-        throw new Error(error.message || 'Failed to generate schedule');
-      }
-      
-      if (!data || !data.schedule) {
-        console.error('Invalid response from generate-schedule:', data);
-        throw new Error('Invalid response from schedule generator');
-      }
-      
-      console.log('Schedule generated successfully:', data.schedule);
-      
-      localStorage.setItem('generatedSchedule', JSON.stringify(data.schedule));
-      
-      return data.schedule;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      console.error('Schedule generation error:', errorMessage);
-      
-      setGenerationError(errorMessage);
-      toast.error('Failed to generate schedule', {
-        description: errorMessage
-      });
-      return null;
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const syncScheduleToGoogle = async () => {
-    setIsSyncingToGoogle(true);
-    console.log('Starting Google Calendar sync process');
-    
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        console.error('No active session found');
-        throw new Error('You must be logged in to sync with Google Calendar');
-      }
-      
-      if (session.user?.app_metadata?.provider !== 'google') {
-        await supabase.auth.signInWithOAuth({
-          provider: 'google',
-          options: {
-            scopes: [
-              'https://www.googleapis.com/auth/calendar.events', 
-              'https://www.googleapis.com/auth/calendar',
-              'https://www.googleapis.com/auth/userinfo.email',
-              'https://www.googleapis.com/auth/userinfo.profile'
-            ],
-            redirectTo: `${window.location.origin}/schedule`
-          }
+  const generateSchedule = useCallback(
+    async ({ apiKey, prompt, email, timezone, onSuccess, onError }: ScheduleGenerationParams) => {
+      setIsLoading(true);
+      try {
+        const response = await fetch('/api/generateSchedule', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ apiKey, prompt, email, timezone }),
         });
-        return false;
-      }
-      
-      console.log('User authenticated, session found', session);
-      
-      const savedSchedule = localStorage.getItem('generatedSchedule');
-      if (!savedSchedule) {
-        console.error('No schedule found in localStorage');
-        throw new Error('No schedule found to sync');
-      }
-      
-      console.log('Schedule found in localStorage, preparing to sync');
-      
-      const { data, error } = await supabase.functions.invoke('sync-google-calendar', {
-        body: { schedule: JSON.parse(savedSchedule) }
-      });
-      
-      if (error) {
-        console.error('Edge function error:', error);
-        throw new Error(error.message || 'Failed to sync with Google Calendar');
-      }
-      
-      console.log('Google Calendar sync response:', data);
-      
-      toast.success('Schedule successfully synced with Google Calendar!', {
-        description: `${data?.eventsAdded || 0} events added to your calendar`
-      });
-      
-      return true;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      console.error('Google Calendar sync error:', errorMessage);
-      
-      toast.error('Failed to sync with Google Calendar', {
-        description: errorMessage
-      });
-      return false;
-    } finally {
-      setIsSyncingToGoogle(false);
-    }
-  };
 
-  const addEvent = async (eventData: any) => {
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('API Error:', errorData);
+          toast({
+            title: "Error generating schedule",
+            description: "Please check your preferences and try again.",
+            variant: "destructive",
+          })
+          onError?.(errorData);
+          throw new Error(`Failed to generate schedule: ${response.status}`);
+        }
+
+        const result = await response.json();
+        console.log('Schedule Result:', result);
+        
+        if (result && result.schedule) {
+          const parsedSchedule = JSON.parse(result.schedule);
+          console.log('Parsed Schedule:', parsedSchedule);
+          
+          localStorage.setItem('generatedSchedule', JSON.stringify(parsedSchedule));
+          
+          onSuccess?.(parsedSchedule);
+        } else {
+          console.error('Invalid schedule format received from API');
+          toast({
+            title: "Error generating schedule",
+            description: "Invalid schedule format received from the server.",
+            variant: "destructive",
+          })
+          onError?.('Invalid schedule format received from API');
+        }
+      } catch (error: any) {
+        console.error('Error generating schedule:', error);
+        toast({
+          title: "Error generating schedule",
+          description: error.message || "Failed to generate schedule. Please try again.",
+          variant: "destructive",
+        })
+        onError?.(error);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [toast]
+  );
+
+  const syncScheduleToGoogleCalendar = async (scheduleData: any[], accessToken: string, timezone: string) => {
+    if (!scheduleData || scheduleData.length === 0) {
+      toast({
+        title: "No schedule data available",
+        description: "Please generate a schedule first.",
+        variant: "destructive",
+      });
+      return;
+    }
+  
+    if (!accessToken) {
+      toast({
+        title: "Authentication required",
+        description: "Please connect to Google Calendar first.",
+        variant: "destructive",
+      });
+      return;
+    }
+  
+    const calendar = google.calendar({ version: 'v3' });
+    google.options({ auth: accessToken });
+  
     try {
-      console.log('Adding new event to schedule:', eventData);
-      
-      const savedSchedule = localStorage.getItem('generatedSchedule');
-      const currentSchedule = savedSchedule ? JSON.parse(savedSchedule) : [];
-      
-      const updatedSchedule = [...currentSchedule, eventData];
-      
-      localStorage.setItem('generatedSchedule', JSON.stringify(updatedSchedule));
-      
-      console.log('Event added successfully, updated schedule:', updatedSchedule);
-      toast.success('Event added successfully', {
-        description: `${eventData.title} has been added to your schedule`
+      setIsLoading(true);
+      for (const eventData of scheduleData) {
+        const event = {
+          summary: eventData.title,
+          description: eventData.description || 'No description provided.',
+          start: {
+            dateTime: getGoogleCalendarTime(eventData.day, eventData.hour, timezone),
+            timeZone: timezone,
+          },
+          end: {
+            dateTime: getGoogleCalendarTime(eventData.day, eventData.hour + eventData.duration, timezone),
+            timeZone: timezone,
+          },
+        };
+  
+        await calendar.events.insert({
+          calendarId: 'primary',
+          requestBody: event,
+        });
+      }
+  
+      toast({
+        title: "Schedule synced to Google Calendar",
+        description: "Your schedule has been successfully synced to your Google Calendar.",
       });
-      
-      return true;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      console.error('Error adding event:', errorMessage);
-      
-      toast.error('Failed to add event', {
-        description: errorMessage
+    } catch (error: any) {
+      console.error('Error syncing to Google Calendar:', error);
+      toast({
+        title: "Error syncing to Google Calendar",
+        description: error.message || "Failed to sync schedule to Google Calendar. Please try again.",
+        variant: "destructive",
       });
-      return false;
+    } finally {
+      setIsLoading(false);
     }
   };
-
-  return {
-    generateSchedule,
-    isGenerating,
-    generationError,
-    syncScheduleToGoogle,
-    isSyncingToGoogle,
-    isGoogleConnected,
-    addEvent
+  
+  const getGoogleCalendarTime = (dayOfWeek: number, hour: number, timezone: string) => {
+    const now = new Date();
+    const currentDayOfWeek = now.getDay();
+    const daysToAdd = (dayOfWeek - currentDayOfWeek + 7) % 7;
+    const nextDate = new Date(now.setDate(now.getDate() + daysToAdd));
+  
+    const eventDate = new Date(nextDate);
+    eventDate.setHours(Math.floor(hour));
+    eventDate.setMinutes(Math.round((hour % 1) * 60));
+    eventDate.setSeconds(0);
+  
+    return eventDate.toISOString();
   };
+
+  return { generateSchedule, isLoading, syncScheduleToGoogleCalendar };
 };
+
+export default useScheduleGeneration;
