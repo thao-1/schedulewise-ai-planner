@@ -25,32 +25,54 @@ const App = () => {
   useEffect(() => {
     // Handle auth redirect and show appropriate toast
     const handleAuthRedirect = async () => {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      
-      // Check URL for Google auth parameters
-      const params = new URLSearchParams(window.location.search);
-      const hash = window.location.hash;
-      const hasGoogleParams = params.has('provider') || (hash && hash.includes('access_token'));
-      
-      if (hasGoogleParams && session) {
-        // Successfully logged in with Google
-        toast.success('Successfully connected with Google!');
-        console.log('Google auth successful, session:', session);
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
         
-        // Clean up URL without refreshing the page
-        const url = new URL(window.location.href);
-        url.search = '';
-        url.hash = '';
-        window.history.replaceState({}, document.title, url.toString());
-      } else if (hasGoogleParams && !session) {
-        // Failed to login with Google
-        toast.error('Google authentication failed', {
-          description: 'Please try again or check console for details'
+        // Check URL for Google auth parameters
+        const params = new URLSearchParams(window.location.search);
+        const hash = window.location.hash;
+        const hasGoogleParams = params.has('provider') || (hash && hash.includes('access_token'));
+        
+        console.log('Auth redirect detected:', {
+          hasGoogleParams,
+          session: !!session,
+          hash,
+          params: Object.fromEntries(params.entries())
         });
-        console.error('Google params detected but no session available');
+        
+        if (hasGoogleParams && session) {
+          // Successfully logged in with Google
+          toast.success('Successfully connected with Google!');
+          console.log('Google auth successful, session:', session);
+          
+          // Get return path (if any)
+          const returnPath = localStorage.getItem('returnPathAfterGoogleAuth') || '/';
+          
+          // Clean up URL without refreshing the page
+          const url = new URL(window.location.href);
+          url.search = '';
+          url.hash = '';
+          window.history.replaceState({}, document.title, url.toString());
+          
+          // If we're not already on the return path, redirect to it
+          if (window.location.pathname !== returnPath) {
+            console.log(`Redirecting to saved return path: ${returnPath}`);
+            window.location.href = returnPath;
+            return;
+          }
+        } else if (hasGoogleParams && !session) {
+          // Failed to login with Google
+          toast.error('Google authentication failed', {
+            description: 'Please try again or check console for details'
+          });
+          console.error('Google params detected but no session available');
+        }
+        
+        setAuthChecked(true);
+      } catch (error) {
+        console.error('Error handling auth redirect:', error);
+        setAuthChecked(true);
       }
-      
-      setAuthChecked(true);
     };
     
     handleAuthRedirect();

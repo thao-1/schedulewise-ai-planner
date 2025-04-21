@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   Card, 
@@ -21,7 +22,8 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useScheduleGeneration } from '@/hooks/useScheduleGeneration';
 import { useTheme } from 'next-themes';
-import { Calendar, AlertCircle, ExternalLink } from 'lucide-react';
+import { Calendar, AlertCircle, ExternalLink, Info } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const Settings = () => {
   const [animations, setAnimations] = useState(true);
@@ -34,6 +36,7 @@ const Settings = () => {
   const [isGoogleCalendarConnected, setIsGoogleCalendarConnected] = useState(false);
   const [isInIframe, setIsInIframe] = useState(false);
   const [googleAuthError, setGoogleAuthError] = useState<string | null>(null);
+  const [showSupabaseConfig, setShowSupabaseConfig] = useState(false);
   
   useEffect(() => {
     try {
@@ -121,11 +124,14 @@ const Settings = () => {
       
       await supabase.auth.signOut({ scope: 'local' });
       
+      const redirectUrl = `${window.location.origin}/settings`;
+      console.log('Setting redirect URL to:', redirectUrl);
+      
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           scopes: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar',
-          redirectTo: `${window.location.origin}/settings`,
+          redirectTo: redirectUrl,
         }
       });
 
@@ -257,23 +263,72 @@ const Settings = () => {
               )}
             </div>
             
-            <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
-              <h4 className="font-medium text-blue-800 mb-2">Google Calendar Integration Guide</h4>
-              <ul className="text-sm text-blue-700 space-y-2 list-disc pl-5">
-                <li>You may need to set up Google OAuth in the Supabase dashboard</li>
-                <li>Ensure you've configured <code>https://app.supabase.io</code> as an authorized JavaScript origin</li>
-                <li>Add <code>https://xdqfmoouljpyidavrofb.supabase.co/auth/v1/callback</code> as an authorized redirect URI</li>
-                <li>Make sure you've enabled the Google Calendar API in your Google Cloud Console</li>
-              </ul>
-              <Button 
-                variant="link" 
-                className="p-0 h-auto text-blue-800 mt-2"
-                onClick={() => window.open('https://supabase.com/docs/guides/auth/social-login/auth-google', '_blank')}
-              >
-                <ExternalLink className="h-3 w-3 mr-1" /> 
-                View Supabase Google Auth docs
-              </Button>
-            </div>
+            <Alert variant="default" className="bg-blue-50 border-blue-200">
+              <Info className="h-4 w-4 text-blue-600" />
+              <AlertTitle className="text-blue-800">Troubleshooting Google Calendar Connection</AlertTitle>
+              <AlertDescription className="text-blue-700">
+                <Button 
+                  variant="link" 
+                  className="p-0 h-auto text-blue-700 underline"
+                  onClick={() => setShowSupabaseConfig(!showSupabaseConfig)}
+                >
+                  {showSupabaseConfig ? "Hide configuration guide" : "Show configuration guide"}
+                </Button>
+              </AlertDescription>
+            </Alert>
+            
+            {showSupabaseConfig && (
+              <div className="p-4 bg-white border border-blue-200 rounded-md space-y-3">
+                <h4 className="font-medium text-gray-800">Google Calendar Integration Configuration Guide</h4>
+                
+                <div className="space-y-2">
+                  <h5 className="font-medium text-sm text-gray-700">1. Set up Supabase OAuth Settings</h5>
+                  <ul className="text-sm text-gray-600 space-y-1 list-disc pl-5">
+                    <li>Go to your <a href="https://supabase.com/dashboard/project/xdqfmoouljpyidavrofb/auth/providers" className="text-blue-700 hover:underline" target="_blank" rel="noopener noreferrer">Supabase Auth providers</a></li>
+                    <li>Enable Google provider and enter your Google Client ID and Secret</li>
+                  </ul>
+                </div>
+                
+                <div className="space-y-2">
+                  <h5 className="font-medium text-sm text-gray-700">2. Set up Redirect URLs in Supabase</h5>
+                  <ul className="text-sm text-gray-600 space-y-1 list-disc pl-5">
+                    <li>Go to <a href="https://supabase.com/dashboard/project/xdqfmoouljpyidavrofb/auth/url-configuration" className="text-blue-700 hover:underline" target="_blank" rel="noopener noreferrer">URL Configuration</a> in Supabase</li>
+                    <li>Set <strong>Site URL</strong> to: <code className="px-1 py-0.5 bg-gray-100 rounded">{window.location.origin}</code></li>
+                    <li>Add <strong>Redirect URLs</strong>: <code className="px-1 py-0.5 bg-gray-100 rounded">{window.location.origin}/settings</code> and <code className="px-1 py-0.5 bg-gray-100 rounded">{window.location.origin}/onboarding</code></li>
+                  </ul>
+                </div>
+                
+                <div className="space-y-2">
+                  <h5 className="font-medium text-sm text-gray-700">3. Configure Google Cloud Console</h5>
+                  <ul className="text-sm text-gray-600 space-y-1 list-disc pl-5">
+                    <li>Go to <a href="https://console.cloud.google.com/apis/credentials" className="text-blue-700 hover:underline" target="_blank" rel="noopener noreferrer">Google Cloud Console Credentials</a></li>
+                    <li>Create or edit your OAuth 2.0 Client ID</li>
+                    <li>Add <strong>Authorized JavaScript origins</strong>: <code className="px-1 py-0.5 bg-gray-100 rounded">{window.location.origin}</code></li>
+                    <li>Add <strong>Authorized redirect URIs</strong>: <code className="px-1 py-0.5 bg-gray-100 rounded">https://xdqfmoouljpyidavrofb.supabase.co/auth/v1/callback</code></li>
+                    <li>Make sure the Google Calendar API is enabled in your project</li>
+                  </ul>
+                </div>
+                
+                <div className="space-y-2">
+                  <h5 className="font-medium text-sm text-gray-700">4. Common Issues</h5>
+                  <ul className="text-sm text-gray-600 space-y-1 list-disc pl-5">
+                    <li>If you see <strong>"This site can't be reached"</strong> or <strong>"localhost refused to connect"</strong> errors, check your redirect URLs</li>
+                    <li>If you see <strong>"requested path is invalid"</strong>, your Supabase callback URL is not configured correctly</li>
+                    <li>If authentication fails with no error, check that you've requested the correct scopes</li>
+                    <li>Developer tools console may show more detailed errors to help troubleshoot</li>
+                  </ul>
+                </div>
+                
+                <Button 
+                  variant="link" 
+                  className="p-0 h-auto text-blue-800 mt-2"
+                  onClick={() => window.open('https://supabase.com/docs/guides/auth/social-login/auth-google', '_blank')}
+                >
+                  <ExternalLink className="h-3 w-3 mr-1" /> 
+                  View Supabase Google Auth docs
+                </Button>
+              </div>
+            )}
           </div>
           
           <Separator />

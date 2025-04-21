@@ -119,6 +119,10 @@ export const useScheduleGeneration = () => {
         const currentPath = window.location.pathname;
         localStorage.setItem('returnPathAfterGoogleAuth', currentPath);
         
+        // Get the current origin for redirection
+        const origin = window.location.origin;
+        console.log(`Setting redirect URL to: ${origin}${currentPath}`);
+        
         // Use sign out and sign in to ensure we get a fresh token with calendar scopes
         await supabase.auth.signOut({ scope: 'local' });
         
@@ -126,7 +130,7 @@ export const useScheduleGeneration = () => {
           provider: 'google',
           options: {
             scopes: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar',
-            redirectTo: `${window.location.origin}${currentPath}`,
+            redirectTo: `${origin}${currentPath}`,
           }
         });
         
