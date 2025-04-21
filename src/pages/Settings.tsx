@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   Card, 
@@ -22,80 +21,145 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useScheduleGeneration } from '@/hooks/useScheduleGeneration';
 import { useTheme } from 'next-themes';
+import { Calendar, AlertCircle, ExternalLink } from 'lucide-react';
 
 const Settings = () => {
-  const [isGoogleCalendarConnected, setIsGoogleCalendarConnected] = useState(false);
-  const { syncScheduleToGoogle, isSyncingToGoogle } = useScheduleGeneration();
-  const { theme, setTheme } = useTheme();
   const [animations, setAnimations] = useState(true);
+  const { theme, setTheme } = useTheme();
+  const { 
+    syncScheduleToGoogle, 
+    isSyncingToGoogle,
+    isGoogleConnected: hookIsGoogleConnected
+  } = useScheduleGeneration();
+  const [isGoogleCalendarConnected, setIsGoogleCalendarConnected] = useState(false);
+  const [isInIframe, setIsInIframe] = useState(false);
+  const [googleAuthError, setGoogleAuthError] = useState<string | null>(null);
   
-  // Check if user is connected to Google on component mount
+  useEffect(() => {
+    try {
+      setIsInIframe(window.self !== window.top);
+      console.log("Iframe detection: ", window.self !== window.top);
+    } catch (e) {
+      setIsInIframe(true);
+      console.log("Access to parent window restricted, assuming iframe");
+    }
+  }, []);
+  
   useEffect(() => {
     const checkGoogleConnection = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user?.app_metadata?.provider === 'google') {
-        setIsGoogleCalendarConnected(true);
+      try {
+        console.log("Checking Google authentication status");
         
-        // Check if this is a redirect from Google auth
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('provider') === 'google') {
-          toast.success('Successfully connected with Google Calendar!');
-          // Auto-trigger sync
-          setTimeout(() => {
-            handleSyncCalendar();
-          }, 1000);
+        const { data: { session } } = await supabase.auth.getSession();
+        console.log("Current session:", session ? "Found" : "None");
+        
+        if (session) {
+          const provider = session.user?.app_metadata?.provider;
+          console.log("Auth provider:", provider);
+          
+          if (provider === 'google') {
+            setIsGoogleCalendarConnected(true);
+            console.log("Google connection detected");
+            
+            const params = new URLSearchParams(window.location.search);
+            if (params.has('provider') && params.get('provider') === 'google') {
+              toast.success('Successfully connected with Google Calendar!');
+              
+              const url = new URL(window.location.href);
+              url.search = '';
+              window.history.replaceState({}, document.title, url.toString());
+              
+              setTimeout(() => {
+                handleSyncCalendar();
+              }, 1000);
+            }
+          }
         }
+      } catch (err) {
+        console.error('Error checking Google authentication:', err);
+        setGoogleAuthError(err instanceof Error ? err.message : 'Unknown error occurred');
       }
     };
-    
+
     checkGoogleConnection();
     
-    // Load animation preference from localStorage
     const savedAnimations = localStorage.getItem('useAnimations');
     if (savedAnimations !== null) {
       setAnimations(savedAnimations === 'true');
     }
   }, []);
 
+  useEffect(() => {
+    setIsGoogleCalendarConnected(hookIsGoogleConnected);
+  }, [hookIsGoogleConnected]);
+
   const handleSave = () => {
-    // Save animation preference to localStorage
     localStorage.setItem('useAnimations', animations.toString());
-    
+    if (animations) {
+      document.body.classList.add('use-animations');
+    } else {
+      document.body.classList.remove('use-animations');
+    }
     toast.success('Settings saved successfully!');
   };
 
   const handleConnectGoogleCalendar = async () => {
     try {
-      // Authenticate with Google using Supabase with explicit calendar scopes
+      setGoogleAuthError(null);
+      
+      if (isInIframe) {
+        setGoogleAuthError('Google authentication cannot run in an iframe. Please open this page directly in a new tab.');
+        toast.error('Cannot authenticate in iframe', {
+          description: 'Please open this page in a new browser tab to connect with Google.'
+        });
+        return;
+      }
+      
+      console.log('Attempting Google integration with Supabase');
+      
+      localStorage.setItem('returnPathAfterGoogleAuth', '/settings');
+      
+      await supabase.auth.signOut({ scope: 'local' });
+      
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           scopes: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar',
-          redirectTo: `${window.location.origin}/settings`
+          redirectTo: `${window.location.origin}/settings`,
         }
       });
 
       if (error) {
-        toast.error('Failed to connect Google Calendar', {
+        console.error('Google integration error:', error);
+        setGoogleAuthError(error.message);
+        toast.error('Failed to connect with Google', {
           description: error.message
         });
+      } else {
+        toast.success('Connecting to Google Calendar...');
       }
     } catch (error) {
-      toast.error('Failed to connect Google Calendar', {
-        description: (error as Error).message
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('Google integration error caught:', errorMessage);
+      setGoogleAuthError(errorMessage);
+      toast.error('Failed to connect with Google', {
+        description: errorMessage
       });
     }
   };
 
-  // Add this function to sync calendar when already connected
   const handleSyncCalendar = async () => {
     await syncScheduleToGoogle();
   };
 
-  // This function would disconnect the Google Calendar in a real implementation
-  const handleDisconnectGoogleCalendar = () => {
-    setIsGoogleCalendarConnected(false);
-    toast.success('Google Calendar disconnected');
+  const handleDisconnectGoogleCalendar = async () => {
+    try {
+      await supabase.auth.signOut();
+      setIsGoogleCalendarConnected(false);
+      toast.success('Google Calendar disconnected');
+    } catch (error) {
+      toast.error('Failed to disconnect from Google Calendar');
+    }
   };
 
   const handleThemeChange = (value: string) => {
@@ -104,13 +168,6 @@ const Settings = () => {
 
   const handleAnimationsToggle = (checked: boolean) => {
     setAnimations(checked);
-    
-    // Apply animations class to body
-    if (checked) {
-      document.body.classList.add('use-animations');
-    } else {
-      document.body.classList.remove('use-animations');
-    }
   };
 
   return (
@@ -120,6 +177,121 @@ const Settings = () => {
         <p className="text-muted-foreground">Manage your account settings and preferences</p>
       </div>
 
+      <Card className="schedule-card">
+        <CardHeader>
+          <CardTitle>Calendar Integration</CardTitle>
+          <CardDescription>Connect your calendar services to sync events</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {isInIframe && (
+            <div className="p-4 bg-orange-50 border border-orange-200 rounded-md flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-orange-500 mt-0.5" />
+              <div>
+                <p className="text-orange-800 font-medium">Cannot authenticate in iframe</p>
+                <p className="text-orange-600 text-sm">
+                  Google authentication will not work in an iframe for security reasons. 
+                  Please open this page directly in a new browser tab.
+                </p>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="mt-2"
+                  onClick={() => window.open(window.location.href, '_blank')}
+                >
+                  Open in new tab
+                </Button>
+              </div>
+            </div>
+          )}
+          
+          {googleAuthError && !isInIframe && (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-md flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-red-500 mt-0.5" />
+              <div>
+                <p className="text-red-800 font-medium">Google Integration Error</p>
+                <p className="text-red-600 text-sm">{googleAuthError}</p>
+              </div>
+            </div>
+          )}
+            
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Google Calendar</Label>
+                <p className="text-sm text-muted-foreground">
+                  {isGoogleCalendarConnected ? 'Connected - sync events automatically' : 'Connect to sync events'}
+                </p>
+              </div>
+              {isGoogleCalendarConnected ? (
+                <div className="space-x-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleSyncCalendar}
+                    disabled={isSyncingToGoogle}
+                  >
+                    {isSyncingToGoogle ? 'Syncing...' : (
+                      <>
+                        <Calendar className="mr-2 h-4 w-4" />
+                        Sync Now
+                      </>
+                    )}
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleDisconnectGoogleCalendar}
+                  >
+                    Disconnect
+                  </Button>
+                </div>
+              ) : (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleConnectGoogleCalendar}
+                  disabled={isInIframe}
+                >
+                  Connect
+                </Button>
+              )}
+            </div>
+            
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
+              <h4 className="font-medium text-blue-800 mb-2">Google Calendar Integration Guide</h4>
+              <ul className="text-sm text-blue-700 space-y-2 list-disc pl-5">
+                <li>You may need to set up Google OAuth in the Supabase dashboard</li>
+                <li>Ensure you've configured <code>https://app.supabase.io</code> as an authorized JavaScript origin</li>
+                <li>Add <code>https://xdqfmoouljpyidavrofb.supabase.co/auth/v1/callback</code> as an authorized redirect URI</li>
+                <li>Make sure you've enabled the Google Calendar API in your Google Cloud Console</li>
+              </ul>
+              <Button 
+                variant="link" 
+                className="p-0 h-auto text-blue-800 mt-2"
+                onClick={() => window.open('https://supabase.com/docs/guides/auth/social-login/auth-google', '_blank')}
+              >
+                <ExternalLink className="h-3 w-3 mr-1" /> 
+                View Supabase Google Auth docs
+              </Button>
+            </div>
+          </div>
+          
+          <Separator />
+          
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Outlook Calendar</Label>
+                <p className="text-sm text-muted-foreground">
+                  Connect to sync events
+                </p>
+              </div>
+              <Button variant="outline" size="sm">Connect</Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      
       <Card className="schedule-card">
         <CardHeader>
           <CardTitle>General Settings</CardTitle>
@@ -150,52 +322,6 @@ const Settings = () => {
                   </p>
                 </div>
                 <Switch id="animations" checked={animations} onCheckedChange={handleAnimationsToggle} />
-              </div>
-            </div>
-          </div>
-
-          <Separator />
-
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium">Calendar Integration</h3>
-            <div className="grid gap-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Google Calendar</Label>
-                  <p className="text-sm text-muted-foreground">
-                    {isGoogleCalendarConnected ? 'Connected - sync events automatically' : 'Connect to sync events'}
-                  </p>
-                </div>
-                {isGoogleCalendarConnected ? (
-                  <div className="space-x-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={handleSyncCalendar}
-                      disabled={isSyncingToGoogle}
-                    >
-                      {isSyncingToGoogle ? 'Syncing...' : 'Sync Now'}
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={handleDisconnectGoogleCalendar}
-                    >
-                      Disconnect
-                    </Button>
-                  </div>
-                ) : (
-                  <Button variant="outline" size="sm" onClick={handleConnectGoogleCalendar}>Connect</Button>
-                )}
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Outlook Calendar</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Connect to sync events
-                  </p>
-                </div>
-                <Button variant="outline" size="sm">Connect</Button>
               </div>
             </div>
           </div>

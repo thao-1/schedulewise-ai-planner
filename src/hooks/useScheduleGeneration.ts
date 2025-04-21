@@ -1,13 +1,37 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Preferences } from '@/types/OnboardingTypes';
+
+interface WindowWithGoogleData extends Window {
+  workLifeBalanceData?: {
+    work: number;
+    personal: number;
+    learning: number;
+    rest: number;
+  };
+}
+
+declare const window: WindowWithGoogleData;
 
 export const useScheduleGeneration = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [isSyncingToGoogle, setIsSyncingToGoogle] = useState(false);
+  const [isGoogleConnected, setIsGoogleConnected] = useState(false);
+
+  // Check if the user is already authenticated with Google
+  useEffect(() => {
+    const checkGoogleAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.app_metadata?.provider === 'google') {
+        setIsGoogleConnected(true);
+      }
+    };
+    
+    checkGoogleAuth();
+  }, []);
 
   const generateSchedule = async (preferences: Preferences) => {
     setIsGenerating(true);
@@ -62,6 +86,7 @@ export const useScheduleGeneration = () => {
     try {
       // Check if user is authenticated
       const { data: { session } } = await supabase.auth.getSession();
+      
       if (!session) {
         console.error('No active session found');
         throw new Error('You must be logged in to sync with Google Calendar');
@@ -78,27 +103,43 @@ export const useScheduleGeneration = () => {
       
       console.log('Schedule found in localStorage, preparing to sync');
       
-      // Check if we have the necessary Google scopes
+      // Check if we have the necessary Google authentication
       const provider = session.user?.app_metadata?.provider;
       const hasGoogleAuth = provider === 'google';
       
       if (!hasGoogleAuth) {
-        console.error('User not authenticated with Google');
+        console.log('User not authenticated with Google, initiating Google auth...');
         
-        // Redirect to Google auth instead of throwing an error
-        toast.info('Connecting to Google Calendar...');
+        // Redirect to Google auth
+        toast.info('Connecting to Google Calendar...', {
+          description: 'You will be redirected to Google for authentication'
+        });
         
-        await supabase.auth.signInWithOAuth({
+        // Store current location to return after auth
+        const currentPath = window.location.pathname;
+        localStorage.setItem('returnPathAfterGoogleAuth', currentPath);
+        
+        // Use sign out and sign in to ensure we get a fresh token with calendar scopes
+        await supabase.auth.signOut({ scope: 'local' });
+        
+        const { error } = await supabase.auth.signInWithOAuth({
           provider: 'google',
           options: {
             scopes: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar',
-            redirectTo: `${window.location.origin}/schedule`,
+            redirectTo: `${window.location.origin}${currentPath}`,
           }
         });
         
-        // This code won't execute as the page will redirect
+        if (error) {
+          console.error('Google auth initiation error:', error);
+          throw new Error(`Failed to start Google authentication: ${error.message}`);
+        }
+        
+        // The page will redirect, so we return to prevent further code execution
         return false;
       }
+      
+      console.log('User has Google auth, proceeding with sync');
       
       // Make the function call to sync calendar
       const { data, error } = await supabase.functions.invoke('sync-google-calendar', {
@@ -167,6 +208,7 @@ export const useScheduleGeneration = () => {
     generationError,
     syncScheduleToGoogle,
     isSyncingToGoogle,
+    isGoogleConnected,
     addEvent
   };
 };
