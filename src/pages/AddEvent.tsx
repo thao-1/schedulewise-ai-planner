@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -25,7 +24,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import { useScheduleGeneration } from '@/hooks/useScheduleGeneration';
+import useScheduleGeneration from '@/hooks/useScheduleGeneration';
 
 const AddEvent = () => {
   const navigate = useNavigate();

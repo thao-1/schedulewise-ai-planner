@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from 'react';
 import { useToast } from "@/components/ui/use-toast";
 import { google } from 'googleapis';
@@ -79,23 +78,22 @@ const useScheduleGeneration = () => {
       toast({
         title: "No schedule data available",
         description: "Please generate a schedule first.",
-        variant: "destructive",
+        variant: "destructive"
       });
-      return;
+      return false;
     }
-  
+
     if (!accessToken) {
       toast({
         title: "Authentication required",
         description: "Please connect to Google Calendar first.",
-        variant: "destructive",
+        variant: "destructive"
       });
-      return;
+      return false;
     }
-  
-    const calendar = google.calendar({ version: 'v3' });
-    google.options({ auth: accessToken });
-  
+
+    const calendar = google.calendar({ version: 'v3', auth: accessToken });
+
     try {
       setIsLoading(true);
       for (const eventData of scheduleData) {
@@ -111,33 +109,31 @@ const useScheduleGeneration = () => {
             timeZone: timezone,
           },
         };
-  
+
         await calendar.events.insert({
           calendarId: 'primary',
           requestBody: event,
         });
       }
-  
+
       toast({
         title: "Schedule synced to Google Calendar",
-        description: "Your schedule has been successfully synced to your Google Calendar.",
+        description: "Your schedule has been successfully synced to your Google Calendar."
       });
-      
       return true;
     } catch (error: any) {
       console.error('Error syncing to Google Calendar:', error);
       toast({
         title: "Error syncing to Google Calendar",
         description: error.message || "Failed to sync schedule to Google Calendar. Please try again.",
-        variant: "destructive",
+        variant: "destructive"
       });
-      
       return false;
     } finally {
       setIsLoading(false);
     }
   };
-  
+
   const getGoogleCalendarTime = (dayOfWeek: number, hour: number, timezone: string) => {
     const now = new Date();
     const currentDayOfWeek = now.getDay();
@@ -152,12 +148,10 @@ const useScheduleGeneration = () => {
     return eventDate.toISOString();
   };
 
-  return { 
-    generateSchedule, 
-    isLoading, 
-    syncScheduleToGoogleCalendar,
-    syncScheduleToGoogle: syncScheduleToGoogleCalendar, // Add an alias for existing code
-    isSyncingToGoogle: isLoading // Add an alias for existing code
+  return {
+    generateSchedule,
+    isLoading,
+    syncScheduleToGoogleCalendar
   };
 };
 

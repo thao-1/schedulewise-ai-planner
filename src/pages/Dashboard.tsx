@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   Card, 
@@ -100,11 +99,10 @@ const Dashboard = () => {
       rest: restPercentage
     };
     
-    const balanceScore = Math.min(100, Math.max(0, 100 - Math.abs(workPercentage - 40)));
+    let balanceScore = Math.min(100, Math.max(0, 100 - Math.abs(workPercentage - 40)));
     const deepWorkScore = Math.min(100, (deepWorkHours / 15) * 100);
     const productivityScore = Math.round((balanceScore * 0.4) + (deepWorkScore * 0.6));
     
-    // Fix: using a let instead of const for balanceRating
     let balanceRating = 'Poor';
     if (balanceScore >= 80) balanceRating = 'Excellent';
     else if (balanceScore >= 60) balanceRating = 'Good';
@@ -265,7 +263,7 @@ const Dashboard = () => {
                 </div>
               ) : (
                 <img 
-                  src="/lovable-uploads/3aa6efcf-89c0-4862-b227-d418a906cf38.png" 
+                  src="/public/lovable-uploads/db9714a8-f33d-47b3-a104-ce759d345321.png" 
                   alt="Schedule visualization" 
                   className="rounded-lg max-h-64 object-cover"
                 />

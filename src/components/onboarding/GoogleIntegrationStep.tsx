@@ -4,46 +4,43 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { AlertCircle, Calendar, Check } from 'lucide-react';
 import useScheduleGeneration from '@/hooks/useScheduleGeneration';
+import { useMutation } from 'react-query';
+import { generateSchedule } from '@/integrations/supabase/generateSchedule';
+import { navigate } from 'react-router-dom';
 
 interface GoogleIntegrationStepProps {
   onComplete: () => void;
   onSkip: () => void;
+  onScheduleGenerated: (data: any) => void;
 }
 
-const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProps) => {
+const GoogleIntegrationStep: React.FC<GoogleIntegrationStepProps> = ({ onComplete, onSkip, onScheduleGenerated }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isInIframe, setIsInIframe] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
 
-  // Add the hook with proper import
   const { syncScheduleToGoogle, isSyncingToGoogle } = useScheduleGeneration();
 
-  // Check if running in an iframe
   useEffect(() => {
     try {
       setIsInIframe(window.self !== window.top);
       console.log("Iframe detection: ", window.self !== window.top);
     } catch (e) {
-      // If we can't access window.top due to security restrictions,
-      // we're probably in an iframe
       setIsInIframe(true);
       console.log("Access to parent window restricted, assuming iframe");
     }
   }, []);
 
-  // Check if the user is already authenticated with Google
   useEffect(() => {
     const checkGoogleAuth = async () => {
       try {
         console.log("Checking Google authentication status");
         
-        // Check if the user is already authenticated
         const { data: { session } } = await supabase.auth.getSession();
         console.log("Current session:", session ? "Found" : "None");
         
         if (session) {
-          // Check if the provider is google
           const provider = session.user?.app_metadata?.provider;
           console.log("Auth provider:", provider);
           
@@ -53,14 +50,12 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
           }
         }
 
-        // Check for auth callback parameters in URL
         const hash = window.location.hash;
         const search = window.location.search;
         
         console.log("URL hash:", hash);
         console.log("URL search params:", search);
         
-        // Parse hash params if present
         if (hash && hash.includes('access_token')) {
           const params = new URLSearchParams(hash.substring(1));
           if (params.has('access_token')) {
@@ -68,21 +63,18 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
             setIsConnected(true);
             toast.success('Successfully connected with Google!');
             
-            // Wait a bit before auto-triggering sync
             setTimeout(() => {
               handleSyncSchedule();
             }, 1000);
           }
         }
         
-        // Check URL search params for provider
         const urlParams = new URLSearchParams(search);
         if (urlParams.get('provider') === 'google') {
           console.log("Google provider detected in URL params");
           setIsConnected(true);
           toast.success('Successfully connected with Google!');
           
-          // Wait a bit before auto-triggering sync
           setTimeout(() => {
             handleSyncSchedule();
           }, 1000);
@@ -98,7 +90,6 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
 
   const handleGoogleIntegration = async () => {
     try {
-      // If we're in an iframe, we need to alert the user
       if (isInIframe) {
         setError('Google authentication cannot run in an iframe. Please open this page directly in a new tab.');
         toast.error('Cannot authenticate in iframe', {
@@ -113,12 +104,11 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
       console.log('Attempting Google integration with Supabase');
       console.log('Redirect URL set to:', `${window.location.origin}/onboarding`);
       
-      // Request calendar scope explicitly
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           scopes: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar',
-          redirectTo: `${window.location.origin}/onboarding`, // Redirect back to onboarding
+          redirectTo: `${window.location.origin}/onboarding`,
         }
       });
 
@@ -132,7 +122,6 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
         });
       } else {
         toast.success('Connecting to Google Calendar...');
-        // We don't call onComplete here as we'll be redirected to Google
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -151,7 +140,6 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
     const success = await syncScheduleToGoogle();
     if (success) {
       console.log("Sync successful, completing step");
-      // Wait a moment before completing to let the user see the success message
       setTimeout(() => {
         onComplete();
       }, 2000);
@@ -159,6 +147,27 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
       console.log("Sync failed or redirected to Google auth");
     }
   };
+
+  const mutation = useMutation({
+    mutationFn: (params: { googleAuthCode: string; userId?: string }) => generateSchedule(params),
+    onSuccess: (data) => {
+      localStorage.setItem('generatedSchedule', JSON.stringify(data));
+      onScheduleGenerated(data);
+      toast({
+        title: "Schedule Generated",
+        description: "Your schedule has been generated successfully.",
+      });
+      navigate('/dashboard');
+    },
+    onError: (error: any) => {
+      console.error("Failed to generate schedule:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to generate schedule. Please try again.",
+      });
+    },
+  });
 
   return (
     <div className="space-y-6">

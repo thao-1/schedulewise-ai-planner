@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -78,7 +77,6 @@ const Onboarding = () => {
     }
   };
 
-  // If we're showing the Google integration step
   if (showGoogleStep) {
     return (
       <div className="max-w-2xl mx-auto py-6 animate-fade-in">
