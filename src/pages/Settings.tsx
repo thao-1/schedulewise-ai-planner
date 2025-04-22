@@ -13,15 +13,16 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from '@/contexts/AuthContext';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { useTheme } from "next-themes";
 
 const Settings = () => {
   const { user, signOut } = useAuth();
-  const [apiKey, setApiKey] = useState('');
   const [email, setEmail] = useState(user?.email || '');
   const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [isSyncEnabled, setIsSyncEnabled] = useState(false);
-  const [accessToken, setAccessToken] = useState('');
   const { toast } = useToast();
+  const { theme, setTheme } = useTheme();
 
   const handleSignOut = async () => {
     try {
@@ -37,10 +38,6 @@ const Settings = () => {
         description: error.message || "Failed to sign out. Please try again.",
       });
     }
-  };
-
-  const handleApiKeyChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setApiKey(event.target.value);
   };
 
   const handleEmailChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -91,14 +88,40 @@ const Settings = () => {
         </CardHeader>
         <CardContent className="grid gap-6">
           <div className="grid gap-2">
-            <Label htmlFor="api-key">API Key</Label>
-            <Input 
-              type="text" 
-              id="api-key" 
-              value={apiKey} 
-              onChange={handleApiKeyChange} 
-              placeholder="Enter your API key" 
-            />
+            <Label>Theme</Label>
+            <RadioGroup
+              defaultValue={theme}
+              onValueChange={(value) => setTheme(value)}
+              className="grid grid-cols-3 gap-4"
+            >
+              <div>
+                <RadioGroupItem value="light" id="light" className="peer sr-only" />
+                <Label
+                  htmlFor="light"
+                  className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                >
+                  Light
+                </Label>
+              </div>
+              <div>
+                <RadioGroupItem value="dark" id="dark" className="peer sr-only" />
+                <Label
+                  htmlFor="dark"
+                  className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                >
+                  Dark
+                </Label>
+              </div>
+              <div>
+                <RadioGroupItem value="system" id="system" className="peer sr-only" />
+                <Label
+                  htmlFor="system"
+                  className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                >
+                  System
+                </Label>
+              </div>
+            </RadioGroup>
           </div>
           <div className="grid gap-2">
             <Label htmlFor="email">Email</Label>
