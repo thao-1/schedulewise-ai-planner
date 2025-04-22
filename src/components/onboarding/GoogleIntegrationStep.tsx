@@ -1,10 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { AlertCircle, Calendar, Check } from 'lucide-react';
-import { useScheduleGeneration } from '@/hooks/useScheduleGeneration';
+import useScheduleGeneration from '@/hooks/useScheduleGeneration';
 
 interface GoogleIntegrationStepProps {
   onComplete: () => void;
@@ -17,7 +16,7 @@ const GoogleIntegrationStep = ({ onComplete, onSkip }: GoogleIntegrationStepProp
   const [isInIframe, setIsInIframe] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
 
-  // Add the hook
+  // Add the hook with proper import
   const { syncScheduleToGoogle, isSyncingToGoogle } = useScheduleGeneration();
 
   // Check if running in an iframe

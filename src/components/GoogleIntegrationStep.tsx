@@ -12,13 +12,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { useMutation } from 'react-query';
+import { useMutation } from '@tanstack/react-query';
 import { generateSchedule } from '@/api/schedule';
 import { useAuth } from '@/contexts/AuthContext';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const GOOGLE_SCOPES = [
-  'https://www.googleapis.com/auth/calendar', // Use a single string instead of array
+  'https://www.googleapis.com/auth/calendar',
   'https://www.googleapis.com/auth/userinfo.email',
   'https://www.googleapis.com/auth/userinfo.profile'
 ].join(' '); // Join scopes with a space
@@ -32,26 +32,27 @@ const GoogleIntegrationStep: React.FC<GoogleIntegrationStepProps> = ({ onSchedul
   const [isLoading, setIsLoading] = useState(false);
   const searchParams = useSearchParams()[0];
   const navigate = useNavigate();
-	const { toast } = useToast();
+  const { toast } = useToast();
   const { user } = useAuth();
 
-  const mutation = useMutation(generateSchedule, {
+  const mutation = useMutation({
+    mutationFn: generateSchedule,
     onSuccess: (data) => {
       localStorage.setItem('generatedSchedule', JSON.stringify(data));
       onScheduleGenerated(data);
-			toast({
-				title: "Schedule Generated",
-				description: "Your schedule has been generated successfully.",
-			})
+      toast({
+        title: "Schedule Generated",
+        description: "Your schedule has been generated successfully.",
+      })
       navigate('/dashboard');
     },
     onError: (error: any) => {
       console.error("Failed to generate schedule:", error);
-			toast({
-				variant: "destructive",
-				title: "Uh oh! Something went wrong.",
-				description: "Failed to generate schedule. Please try again.",
-			})
+      toast({
+        variant: "destructive",
+        title: "Uh oh! Something went wrong.",
+        description: "Failed to generate schedule. Please try again.",
+      })
     },
   });
 

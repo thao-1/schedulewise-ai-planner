@@ -1,14 +1,7 @@
-import { useState, useCallback } from 'react';
-import { useToast } from "@/components/ui/use-toast"
-import { EventInput } from '@fullcalendar/core';
-import { useMutation } from '@tanstack/react-query';
-import { google } from 'googleapis';
 
-const GOOGLE_SCOPES = [
-  'https://www.googleapis.com/auth/calendar', // Use a single string instead of array
-  'https://www.googleapis.com/auth/userinfo.email',
-  'https://www.googleapis.com/auth/userinfo.profile'
-].join(' '); // Join scopes with a space
+import { useState, useCallback } from 'react';
+import { useToast } from "@/components/ui/use-toast";
+import { google } from 'googleapis';
 
 interface ScheduleGenerationParams {
   apiKey: string;
@@ -129,6 +122,8 @@ const useScheduleGeneration = () => {
         title: "Schedule synced to Google Calendar",
         description: "Your schedule has been successfully synced to your Google Calendar.",
       });
+      
+      return true;
     } catch (error: any) {
       console.error('Error syncing to Google Calendar:', error);
       toast({
@@ -136,6 +131,8 @@ const useScheduleGeneration = () => {
         description: error.message || "Failed to sync schedule to Google Calendar. Please try again.",
         variant: "destructive",
       });
+      
+      return false;
     } finally {
       setIsLoading(false);
     }
@@ -155,7 +152,13 @@ const useScheduleGeneration = () => {
     return eventDate.toISOString();
   };
 
-  return { generateSchedule, isLoading, syncScheduleToGoogleCalendar };
+  return { 
+    generateSchedule, 
+    isLoading, 
+    syncScheduleToGoogleCalendar,
+    syncScheduleToGoogle: syncScheduleToGoogleCalendar, // Add an alias for existing code
+    isSyncingToGoogle: isLoading // Add an alias for existing code
+  };
 };
 
 export default useScheduleGeneration;

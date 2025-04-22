@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   Card, 
@@ -103,7 +104,8 @@ const Dashboard = () => {
     const deepWorkScore = Math.min(100, (deepWorkHours / 15) * 100);
     const productivityScore = Math.round((balanceScore * 0.4) + (deepWorkScore * 0.6));
     
-    const balanceRating = 'Poor';
+    // Fix: using a let instead of const for balanceRating
+    let balanceRating = 'Poor';
     if (balanceScore >= 80) balanceRating = 'Excellent';
     else if (balanceScore >= 60) balanceRating = 'Good';
     else if (balanceScore >= 40) balanceRating = 'Average';
