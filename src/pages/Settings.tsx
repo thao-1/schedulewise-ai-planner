@@ -68,7 +68,7 @@ const Settings = () => {
 
     try {
       const parsedSchedule = JSON.parse(scheduleData);
-      // Removed the non-existent function reference
+      // This is a placeholder for the actual sync functionality
       toast({
         title: "Schedule synced",
         description: "Your schedule has been successfully synced to Google Calendar.",
