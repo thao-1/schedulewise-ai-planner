@@ -1,12 +1,12 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { AlertCircle, Calendar, Check } from 'lucide-react';
 import useScheduleGeneration from '@/hooks/useScheduleGeneration';
-import { useMutation } from 'react-query';
-import { generateSchedule } from '@/integrations/supabase/generateSchedule';
-import { navigate } from 'react-router-dom';
+import { useMutation } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 
 interface GoogleIntegrationStepProps {
   onComplete: () => void;
@@ -19,8 +19,8 @@ const GoogleIntegrationStep: React.FC<GoogleIntegrationStepProps> = ({ onComplet
   const [error, setError] = useState<string | null>(null);
   const [isInIframe, setIsInIframe] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
-
-  const { syncScheduleToGoogle, isSyncingToGoogle } = useScheduleGeneration();
+  const { syncScheduleToGoogleCalendar, isLoading: isSyncingToGoogle } = useScheduleGeneration();
+  const navigate = useNavigate();
 
   useEffect(() => {
     try {
@@ -137,37 +137,39 @@ const GoogleIntegrationStep: React.FC<GoogleIntegrationStepProps> = ({ onComplet
 
   const handleSyncSchedule = async () => {
     console.log("Attempting to sync schedule to Google Calendar");
-    const success = await syncScheduleToGoogle();
-    if (success) {
-      console.log("Sync successful, completing step");
-      setTimeout(() => {
-        onComplete();
-      }, 2000);
-    } else {
-      console.log("Sync failed or redirected to Google auth");
+    const scheduleData = localStorage.getItem('generatedSchedule');
+    if (!scheduleData) {
+      toast.error('No schedule data available');
+      return;
+    }
+    
+    try {
+      const parsedSchedule = JSON.parse(scheduleData);
+      // Get user timezone or use default
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      
+      // We need to get an access token from the session
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.provider_token || '';
+      
+      if (!accessToken) {
+        toast.error('Authentication required');
+        return;
+      }
+      
+      const success = await syncScheduleToGoogleCalendar(parsedSchedule, accessToken, timezone);
+      
+      if (success) {
+        console.log("Sync successful, completing step");
+        setTimeout(() => {
+          onComplete();
+        }, 2000);
+      }
+    } catch (err) {
+      console.error('Error syncing schedule:', err);
+      toast.error('Failed to sync schedule');
     }
   };
-
-  const mutation = useMutation({
-    mutationFn: (params: { googleAuthCode: string; userId?: string }) => generateSchedule(params),
-    onSuccess: (data) => {
-      localStorage.setItem('generatedSchedule', JSON.stringify(data));
-      onScheduleGenerated(data);
-      toast({
-        title: "Schedule Generated",
-        description: "Your schedule has been generated successfully.",
-      });
-      navigate('/dashboard');
-    },
-    onError: (error: any) => {
-      console.error("Failed to generate schedule:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to generate schedule. Please try again.",
-      });
-    },
-  });
 
   return (
     <div className="space-y-6">

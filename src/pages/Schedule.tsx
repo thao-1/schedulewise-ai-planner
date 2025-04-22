@@ -1,102 +1,92 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   Card, 
   CardContent, 
   CardDescription, 
   CardHeader, 
-  CardTitle 
+  CardTitle,
+  CardFooter
 } from '@/components/ui/card';
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Plus, RefreshCw, Calendar } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { useScheduleGeneration } from '@/hooks/useScheduleGeneration';
+import { Calendar } from '@/components/ui/calendar';
+import { useNavigate } from 'react-router-dom';
+import { PlusCircle, Download, Upload } from 'lucide-react';
+import useScheduleGeneration from '@/hooks/useScheduleGeneration';
+import { useToast } from '@/components/ui/use-toast';
 
 const Schedule = () => {
-  const [currentView, setCurrentView] = useState('week');
-  const [currentWeek, setCurrentWeek] = useState(new Date());
   const [scheduleData, setScheduleData] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const { generateSchedule, syncScheduleToGoogle, isSyncingToGoogle } = useScheduleGeneration();
-  const [isGoogleConnected, setIsGoogleConnected] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [selectedDayEvents, setSelectedDayEvents] = useState<any[]>([]);
+  const navigate = useNavigate();
+  const { syncScheduleToGoogleCalendar, isLoading } = useScheduleGeneration();
+  const { toast } = useToast();
 
   useEffect(() => {
-    const fetchScheduleFromStorage = async () => {
+    const fetchScheduleFromStorage = () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const userId = session?.user?.id;
-        
-        if (session?.user?.app_metadata?.provider === 'google') {
-          setIsGoogleConnected(true);
-        }
-        
         const savedSchedule = localStorage.getItem('generatedSchedule');
         if (savedSchedule) {
-          setScheduleData(JSON.parse(savedSchedule));
-          setIsLoading(false);
-          return;
+          const parsedSchedule = JSON.parse(savedSchedule);
+          setScheduleData(parsedSchedule);
+          
+          if (selectedDate) {
+            // Filter events for the selected day
+            const dayOfWeek = selectedDate.getDay(); // 0 for Sunday, 1 for Monday, etc.
+            const eventsForDay = parsedSchedule.filter((event: any) => event.day === dayOfWeek);
+            setSelectedDayEvents(eventsForDay);
+          }
         }
-        
-        setIsLoading(false);
       } catch (error) {
         console.error('Error fetching schedule:', error);
-        toast.error('Failed to load schedule');
-        setIsLoading(false);
       }
     };
 
     fetchScheduleFromStorage();
-  }, []);
+  }, [selectedDate]);
 
-  const navigateWeek = (direction: 'prev' | 'next') => {
-    const newDate = new Date(currentWeek);
-    if (direction === 'prev') {
-      newDate.setDate(newDate.getDate() - 7);
-    } else {
-      newDate.setDate(newDate.getDate() + 7);
-    }
-    setCurrentWeek(newDate);
+  const handleDateSelect = (date: Date | undefined) => {
+    setSelectedDate(date);
   };
 
-  const handleRegenerateSchedule = async () => {
+  const handleSyncToGoogle = async () => {
     try {
-      setIsLoading(true);
-      toast.info('Regenerating your schedule...');
+      // In a real implementation, this would get the token from your auth provider
+      const accessToken = localStorage.getItem('googleAccessToken') || '';
       
-      window.location.href = '/onboarding';
-    } catch (error) {
-      toast.error('Failed to regenerate schedule');
-      setIsLoading(false);
+      if (!accessToken) {
+        toast({
+          title: "Authentication required",
+          description: "Please connect to Google Calendar first in Settings.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      await syncScheduleToGoogleCalendar(scheduleData, accessToken, timezone);
+      
+      toast({
+        title: "Schedule synced",
+        description: "Your schedule has been successfully synced to Google Calendar."
+      });
+    } catch (error: any) {
+      toast({
+        title: "Sync failed",
+        description: error.message || "Failed to sync with Google Calendar.",
+        variant: "destructive"
+      });
     }
   };
 
-  const getWeekRange = () => {
-    const start = new Date(currentWeek);
-    start.setDate(start.getDate() - start.getDay());
-    
-    const end = new Date(start);
-    end.setDate(end.getDate() + 6);
-    
-    const startMonth = start.toLocaleString('default', { month: 'short' });
-    const endMonth = end.toLocaleString('default', { month: 'short' });
-    
-    if (startMonth === endMonth) {
-      return `${startMonth} ${start.getDate()} - ${end.getDate()}, ${end.getFullYear()}`;
-    } else {
-      return `${startMonth} ${start.getDate()} - ${endMonth} ${end.getDate()}, ${end.getFullYear()}`;
-    }
+  const formatTime = (hour: number) => {
+    const hourPart = Math.floor(hour);
+    const minutePart = Math.round((hour - hourPart) * 60);
+    const period = hourPart >= 12 ? 'PM' : 'AM';
+    const hour12 = hourPart % 12 === 0 ? 12 : hourPart % 12;
+    return `${hour12}:${minutePart.toString().padStart(2, '0')} ${period}`;
   };
-
-  const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  
-  const hoursOfDay = Array.from({ length: 18 }, (_, i) => i + 6);
 
   const getEventColor = (type: string) => {
     const colors: { [key: string]: string } = {
@@ -113,203 +103,81 @@ const Schedule = () => {
     return colors[type] || 'bg-gray-100 border-gray-300';
   };
 
-  const handleAddEvent = () => {
-    window.location.href = '/add-event';
-  };
-
-  const handleGoogleSync = async () => {
-    await syncScheduleToGoogle();
-  };
-
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">My Schedule</h2>
-          <p className="text-muted-foreground">View and manage your AI-generated schedule</p>
+    <div className="container mx-auto py-6">
+      <div className="flex flex-col md:flex-row gap-8">
+        <div className="md:w-1/3">
+          <Card>
+            <CardHeader>
+              <CardTitle>Calendar</CardTitle>
+              <CardDescription>Select a day to view events</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={handleDateSelect}
+                className="rounded-md border"
+              />
+            </CardContent>
+            <CardFooter className="flex justify-center">
+              <Button variant="outline" className="w-full" onClick={handleSyncToGoogle} disabled={isLoading}>
+                <Upload className="mr-2 h-4 w-4" />
+                Sync to Google Calendar
+              </Button>
+            </CardFooter>
+          </Card>
         </div>
-        <div className="flex items-center gap-2">
-          {isGoogleConnected && (
-            <Button 
-              variant="outline" 
-              onClick={handleGoogleSync}
-              disabled={isSyncingToGoogle || scheduleData.length === 0}
-              className="flex items-center gap-1"
-            >
-              {isSyncingToGoogle ? (
-                <RefreshCw className="h-4 w-4 animate-spin" />
-              ) : (
-                <Calendar className="h-4 w-4" />
-              )}
-              <span className="hidden sm:inline">{isSyncingToGoogle ? 'Syncing...' : 'Sync to Google'}</span>
+        
+        <div className="md:w-2/3">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-2xl font-bold">
+              {selectedDate ? selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) : 'Schedule'}
+            </h2>
+            <Button onClick={() => navigate('/add-event')}>
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Add Event
             </Button>
-          )}
-          <Button variant="outline" size="icon" onClick={handleAddEvent}>
-            <Plus className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="icon" onClick={handleRegenerateSchedule}>
-            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-          </Button>
-          <Select value={currentView} onValueChange={setCurrentView}>
-            <SelectTrigger className="w-[130px]">
-              <SelectValue placeholder="Select view" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="day">Day</SelectItem>
-              <SelectItem value="week">Week</SelectItem>
-              <SelectItem value="month">Month</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      <Card className="schedule-card">
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle>{getWeekRange()}</CardTitle>
-            <div className="flex items-center space-x-2">
-              <Button variant="outline" size="icon" onClick={() => navigateWeek('prev')}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="icon" onClick={() => navigateWeek('next')}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
           </div>
-          <CardDescription>Your optimized weekly schedule</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center items-center h-96">
-              <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : scheduleData.length === 0 ? (
-            <div className="flex flex-col justify-center items-center h-64 text-center">
-              <p className="text-muted-foreground mb-4">No schedule available yet. Generate one from onboarding.</p>
-              <Button onClick={() => window.location.href = '/onboarding'}>
-                Go to Onboarding
-              </Button>
+          
+          {selectedDayEvents.length > 0 ? (
+            <div className="space-y-4">
+              {selectedDayEvents
+                .sort((a, b) => a.hour - b.hour)
+                .map((event, index) => (
+                  <Card key={index} className={`${getEventColor(event.type)} border`}>
+                    <CardContent className="p-4">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="font-medium text-lg">{event.title}</h3>
+                          <p className="text-sm text-gray-600">
+                            {formatTime(event.hour)} - {formatTime(event.hour + event.duration)}
+                          </p>
+                          {event.description && (
+                            <p className="mt-2 text-sm">{event.description}</p>
+                          )}
+                        </div>
+                        <span className="px-2 py-1 text-xs rounded-full bg-white bg-opacity-50">
+                          {event.type}
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <div className="min-w-[800px]">
-                <div className="grid grid-cols-8 gap-1">
-                  <div className="p-2 font-medium text-center"></div>
-                  {daysOfWeek.map((day, index) => (
-                    <div key={day} className="p-2 font-medium text-center bg-secondary rounded-md">
-                      <div>{day}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {new Date(new Date(currentWeek).setDate(
-                          currentWeek.getDate() - currentWeek.getDay() + index
-                        )).getDate()}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="grid grid-cols-8 gap-1 mt-1">
-                  <div className="space-y-1">
-                    {hoursOfDay.map((hour) => (
-                      <div key={hour} className="h-20 p-2 text-xs text-center flex items-center justify-center">
-                        {hour % 12 === 0 ? '12' : hour % 12} {hour < 12 ? 'AM' : 'PM'}
-                      </div>
-                    ))}
-                  </div>
-
-                  {Array.from({ length: 7 }, (_, dayIndex) => (
-                    <div key={dayIndex} className="space-y-1">
-                      {hoursOfDay.map((hourBlock) => {
-                        const eventsAtThisTime = scheduleData.filter(
-                          event => event.day === dayIndex && Math.floor(event.hour) === hourBlock
-                        );
-
-                        return (
-                          <div key={hourBlock} className="h-20 p-1 border border-dashed border-gray-200 rounded-md relative">
-                            {eventsAtThisTime.map(event => {
-                              const fractionalPart = event.hour - Math.floor(event.hour);
-                              const topOffset = fractionalPart * 100;
-                              
-                              return (
-                                <div 
-                                  key={`${event.day}-${event.hour}-${event.title}`} 
-                                  className={`absolute rounded-md border ${getEventColor(event.type)} overflow-hidden`}
-                                  style={{ 
-                                    top: `${topOffset}%`, 
-                                    height: `${event.duration * 100}%`,
-                                    left: '0',
-                                    right: '0',
-                                    margin: '1px'
-                                  }}
-                                >
-                                  <div className="p-1">
-                                    <div className="font-medium text-xs line-clamp-1">{event.title}</div>
-                                    <div className="text-xs text-muted-foreground line-clamp-1">
-                                      {Math.floor(event.hour) % 12 === 0 ? '12' : Math.floor(event.hour) % 12}:
-                                      {(event.hour % 1) * 60 < 10 ? '0' : ''}
-                                      {Math.round((event.hour % 1) * 60)} 
-                                      {event.hour < 12 ? 'AM' : 'PM'}
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <Card>
+              <CardContent className="p-6 text-center">
+                <p className="mb-4">No events scheduled for this day.</p>
+                <Button variant="outline" onClick={() => navigate('/add-event')}>
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  Add Event
+                </Button>
+              </CardContent>
+            </Card>
           )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Event Types</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-red-300 rounded"></div>
-              <span>Meeting</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-green-300 rounded"></div>
-              <span>Deep Work</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-yellow-300 rounded"></div>
-              <span>Workout</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-orange-300 rounded"></div>
-              <span>Meals</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-purple-300 rounded"></div>
-              <span>Learning</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-blue-300 rounded"></div>
-              <span>Relaxation</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-indigo-300 rounded"></div>
-              <span>Work</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-gray-300 rounded"></div>
-              <span>Commute</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-slate-300 rounded"></div>
-              <span>Sleep</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 };

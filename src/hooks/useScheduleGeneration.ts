@@ -1,6 +1,6 @@
+
 import { useState, useCallback } from 'react';
 import { useToast } from "@/components/ui/use-toast";
-import { google } from 'googleapis';
 
 interface ScheduleGenerationParams {
   apiKey: string;
@@ -92,28 +92,23 @@ const useScheduleGeneration = () => {
       return false;
     }
 
-    const calendar = google.calendar({ version: 'v3', auth: accessToken });
-
     try {
       setIsLoading(true);
-      for (const eventData of scheduleData) {
-        const event = {
-          summary: eventData.title,
-          description: eventData.description || 'No description provided.',
-          start: {
-            dateTime: getGoogleCalendarTime(eventData.day, eventData.hour, timezone),
-            timeZone: timezone,
-          },
-          end: {
-            dateTime: getGoogleCalendarTime(eventData.day, eventData.hour + eventData.duration, timezone),
-            timeZone: timezone,
-          },
-        };
+      // Instead of using googleapis directly, make a call to your API
+      const response = await fetch('/api/syncGoogleCalendar', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({
+          events: scheduleData,
+          timezone
+        }),
+      });
 
-        await calendar.events.insert({
-          calendarId: 'primary',
-          requestBody: event,
-        });
+      if (!response.ok) {
+        throw new Error(`Failed to sync calendar: ${response.status}`);
       }
 
       toast({

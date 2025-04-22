@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   Card, 
@@ -99,10 +100,11 @@ const Dashboard = () => {
       rest: restPercentage
     };
     
-    let balanceScore = Math.min(100, Math.max(0, 100 - Math.abs(workPercentage - 40)));
+    const balanceScore = Math.min(100, Math.max(0, 100 - Math.abs(workPercentage - 40)));
     const deepWorkScore = Math.min(100, (deepWorkHours / 15) * 100);
     const productivityScore = Math.round((balanceScore * 0.4) + (deepWorkScore * 0.6));
     
+    // Fix: using let instead of const for a variable that will be reassigned
     let balanceRating = 'Poor';
     if (balanceScore >= 80) balanceRating = 'Excellent';
     else if (balanceScore >= 60) balanceRating = 'Good';

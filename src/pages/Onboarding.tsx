@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,7 +13,7 @@ import { useOnboarding } from '@/hooks/useOnboarding';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import { useScheduleGeneration } from '@/hooks/useScheduleGeneration';
+import useScheduleGeneration from '@/hooks/useScheduleGeneration';
 import GoogleIntegrationStep from '@/components/onboarding/GoogleIntegrationStep';
 
 const Onboarding = () => {
@@ -25,20 +26,36 @@ const Onboarding = () => {
     handleNext,
     handleBack
   } = useOnboarding();
-  const { generateSchedule, isGenerating, generationError } = useScheduleGeneration();
+  const { generateSchedule, isLoading: isGenerating } = useScheduleGeneration();
   const navigate = useNavigate();
   const [showGoogleStep, setShowGoogleStep] = useState(false);
   const [generationAttempted, setGenerationAttempted] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
+  const [generatedScheduleData, setGeneratedScheduleData] = useState<any>(null);
 
   const handleComplete = async () => {
     setGenerationAttempted(true);
     
-    const schedule = await generateSchedule(preferences);
-    
-    if (schedule) {
-      toast.success('Schedule generated successfully!');
-      setShowGoogleStep(true);
-    } else if (generationError) {
+    try {
+      await generateSchedule({
+        apiKey: '',
+        prompt: JSON.stringify(preferences),
+        email: '',
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        onSuccess: (schedule) => {
+          setGeneratedScheduleData(schedule);
+          toast.success('Schedule generated successfully!');
+          setShowGoogleStep(true);
+        },
+        onError: (error) => {
+          setGenerationError(error.message || 'Unknown error');
+          toast.error('Schedule generation failed', {
+            description: 'Please try again or contact support if the problem persists.'
+          });
+        }
+      });
+    } catch (error: any) {
+      setGenerationError(error.message || 'Unknown error');
       toast.error('Schedule generation failed', {
         description: 'Please try again or contact support if the problem persists.'
       });
@@ -51,6 +68,10 @@ const Onboarding = () => {
 
   const handleSkipGoogle = () => {
     navigate('/schedule');
+  };
+
+  const handleScheduleGenerated = (data: any) => {
+    setGeneratedScheduleData(data);
   };
 
   const connectWithGoogle = async () => {
@@ -83,6 +104,7 @@ const Onboarding = () => {
         <GoogleIntegrationStep 
           onComplete={handleGoogleComplete}
           onSkip={handleSkipGoogle}
+          onScheduleGenerated={handleScheduleGenerated}
         />
       </div>
     );
