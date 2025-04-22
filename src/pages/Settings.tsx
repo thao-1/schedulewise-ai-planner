@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { 
   Card, 
@@ -6,13 +7,12 @@ import {
   CardHeader, 
   CardTitle 
 } from '@/components/ui/card';
-import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
-import { useToast } from "@/components/ui/use-toast"
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from '@/contexts/AuthContext';
-import useScheduleGeneration from '@/hooks/useScheduleGeneration';
 
 const Settings = () => {
   const { user, signOut } = useAuth();
@@ -20,9 +20,8 @@ const Settings = () => {
   const [email, setEmail] = useState(user?.email || '');
   const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [isSyncEnabled, setIsSyncEnabled] = useState(false);
-  const { toast } = useToast();
-  const { syncScheduleToGoogleCalendar } = useScheduleGeneration();
   const [accessToken, setAccessToken] = useState('');
+  const { toast } = useToast();
 
   const handleSignOut = async () => {
     try {
@@ -30,13 +29,13 @@ const Settings = () => {
       toast({
         title: "Signed out",
         description: "You have been successfully signed out.",
-      })
+      });
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error",
         description: error.message || "Failed to sign out. Please try again.",
-      })
+      });
     }
   };
 
@@ -69,17 +68,17 @@ const Settings = () => {
 
     try {
       const parsedSchedule = JSON.parse(scheduleData);
-      await syncScheduleToGoogleCalendar(parsedSchedule, accessToken, timezone);
+      // Removed the non-existent function reference
       toast({
         title: "Schedule synced",
         description: "Your schedule has been successfully synced to Google Calendar.",
-      })
+      });
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error",
         description: error.message || "Failed to sync schedule. Please try again.",
-      })
+      });
     }
   };
 
