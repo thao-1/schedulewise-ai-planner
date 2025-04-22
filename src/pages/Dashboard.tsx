@@ -265,7 +265,7 @@ const Dashboard = () => {
                 </div>
               ) : (
                 <img 
-                  src="/public/lovable-uploads/db9714a8-f33d-47b3-a104-ce759d345321.png" 
+                  src="/pictures/pic1.png" 
                   alt="Schedule visualization" 
                   className="rounded-lg max-h-64 object-cover"
                 />
@@ -329,7 +329,7 @@ const Dashboard = () => {
           {scheduleData.length > 0 ? (
             <div className="flex flex-col items-center">
               <img 
-                src="/lovable-uploads/ca5064cf-ef84-493a-b37a-20ba809b1c61.png" 
+                src="/pictures/pic2.png" 
                 alt="Work-life balance" 
                 className="rounded-lg max-h-64 object-cover mb-4"
               />
@@ -357,7 +357,7 @@ const Dashboard = () => {
           ) : (
             <div className="flex justify-center">
               <img 
-                src="/lovable-uploads/ca5064cf-ef84-493a-b37a-20ba809b1c61.png" 
+                src="/pictures/pic2.png" 
                 alt="Work-life balance" 
                 className="rounded-lg max-h-64 object-cover"
               />
