@@ -14,7 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import useScheduleGeneration from '@/hooks/useScheduleGeneration';
-import GoogleIntegrationStep from '@/components/onboarding/GoogleIntegrationStep';
+import ScheduleWithGoogleIntegration from '@/components/onboarding/ScheduleWithGoogleIntegration';
 
 const Onboarding = () => {
   const {
@@ -35,7 +35,7 @@ const Onboarding = () => {
 
   const handleComplete = async () => {
     setGenerationAttempted(true);
-    
+
     try {
       await generateSchedule({
         apiKey: '',
@@ -98,13 +98,13 @@ const Onboarding = () => {
     }
   };
 
-  if (showGoogleStep) {
+  if (showGoogleStep && generatedScheduleData) {
     return (
-      <div className="max-w-2xl mx-auto py-6 animate-fade-in">
-        <GoogleIntegrationStep 
+      <div className="max-w-4xl mx-auto py-6 animate-fade-in">
+        <ScheduleWithGoogleIntegration
           onComplete={handleGoogleComplete}
           onSkip={handleSkipGoogle}
-          onScheduleGenerated={handleScheduleGenerated}
+          scheduleData={generatedScheduleData}
         />
       </div>
     );
@@ -172,32 +172,32 @@ const Onboarding = () => {
             <h3 className="text-lg font-medium">What personal activities do you want to schedule?</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="meals" 
+                <Checkbox
+                  id="meals"
                   checked={preferences.personalActivities.includes('meals')}
                   onCheckedChange={(checked) => handleCheckboxChange('personalActivities', 'meals', checked === true)}
                 />
                 <Label htmlFor="meals">Meals</Label>
               </div>
               <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="workout" 
+                <Checkbox
+                  id="workout"
                   checked={preferences.personalActivities.includes('workout')}
                   onCheckedChange={(checked) => handleCheckboxChange('personalActivities', 'workout', checked === true)}
                 />
                 <Label htmlFor="workout">Workout</Label>
               </div>
               <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="learning" 
+                <Checkbox
+                  id="learning"
                   checked={preferences.personalActivities.includes('learning')}
                   onCheckedChange={(checked) => handleCheckboxChange('personalActivities', 'learning', checked === true)}
                 />
                 <Label htmlFor="learning">Learning</Label>
               </div>
               <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="relaxation" 
+                <Checkbox
+                  id="relaxation"
                   checked={preferences.personalActivities.includes('relaxation')}
                   onCheckedChange={(checked) => handleCheckboxChange('personalActivities', 'relaxation', checked === true)}
                 />
@@ -301,7 +301,7 @@ const Onboarding = () => {
                 Enable automatic rescheduling
               </Label>
             </div>
-            <CustomPreferences 
+            <CustomPreferences
               value={preferences.customPreferences}
               onChange={(value) => handleInputChange('customPreferences', value)}
             />
@@ -315,11 +315,11 @@ const Onboarding = () => {
   return (
     <div className="max-w-2xl mx-auto py-6 animate-fade-in">
       <h2 className="text-3xl font-bold tracking-tight mb-6">Setup Your Preferences</h2>
-      
+
       <Card className="schedule-card mb-4">
         <CardContent className="flex justify-center p-6">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             className="w-full max-w-md"
             onClick={connectWithGoogle}
           >
@@ -327,9 +327,9 @@ const Onboarding = () => {
           </Button>
         </CardContent>
       </Card>
-      
+
       <StepProgressBar steps={steps} currentStep={currentStep} />
-      
+
       <Card className="schedule-card">
         <CardHeader>
           <CardTitle>Step {currentStep + 1}: {steps[currentStep]?.id?.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</CardTitle>
@@ -349,8 +349,8 @@ const Onboarding = () => {
             Back
           </Button>
           {currentStep === steps.length - 1 ? (
-            <Button 
-              onClick={handleComplete} 
+            <Button
+              onClick={handleComplete}
               disabled={isGenerating}
               className="min-w-[100px]"
             >
@@ -366,7 +366,7 @@ const Onboarding = () => {
           )}
         </CardFooter>
       </Card>
-      
+
       {generationAttempted && generationError && (
         <Card className="mt-4 border-red-300 bg-red-50">
           <CardContent className="pt-6">
@@ -374,9 +374,9 @@ const Onboarding = () => {
             <p className="text-red-600 mt-2">
               There was an error generating your schedule. Please try again or contact support.
             </p>
-            <Button 
-              variant="destructive" 
-              className="mt-4" 
+            <Button
+              variant="destructive"
+              className="mt-4"
               onClick={handleComplete}
               disabled={isGenerating}
             >
