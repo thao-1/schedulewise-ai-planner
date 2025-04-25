@@ -19,12 +19,17 @@ const useScheduleGeneration = () => {
     async ({ apiKey, prompt, email, timezone, onSuccess, onError }: ScheduleGenerationParams) => {
       setIsLoading(true);
       try {
-        const response = await fetch('/api/generateSchedule', {
+        // Change to call the Supabase Edge Function directly
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-schedule`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            // Add Supabase anon key if needed
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY || '',
           },
-          body: JSON.stringify({ apiKey, prompt, email, timezone }),
+          body: JSON.stringify({ 
+            preferences: JSON.parse(prompt) 
+          }),
         });
 
         if (!response.ok) {
@@ -32,7 +37,7 @@ const useScheduleGeneration = () => {
           console.error('API Error:', errorData);
           toast({
             title: "Error generating schedule",
-            description: "Please check your preferences and try again.",
+            description: errorData.error || "Please check your preferences and try again.",
             variant: "destructive",
           })
           onError?.(errorData);
@@ -43,12 +48,12 @@ const useScheduleGeneration = () => {
         console.log('Schedule Result:', result);
         
         if (result && result.schedule) {
-          const parsedSchedule = JSON.parse(result.schedule);
-          console.log('Parsed Schedule:', parsedSchedule);
+          // The schedule is already parsed JSON from the Edge Function
+          console.log('Parsed Schedule:', result.schedule);
           
-          localStorage.setItem('generatedSchedule', JSON.stringify(parsedSchedule));
+          localStorage.setItem('generatedSchedule', JSON.stringify(result.schedule));
           
-          onSuccess?.(parsedSchedule);
+          onSuccess?.(result.schedule);
         } else {
           console.error('Invalid schedule format received from API');
           toast({

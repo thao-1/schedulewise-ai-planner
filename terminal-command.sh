@@ -1,0 +1,2 @@
+# Set the OpenAI API key for your Supabase project
+supabase secrets set OPENAI_API_KEY=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

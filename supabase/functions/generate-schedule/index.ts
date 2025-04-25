@@ -18,6 +18,17 @@ serve(async (req) => {
   try {
     const { preferences } = await req.json();
 
+    // Add validation for preferences
+    if (!preferences) {
+      return new Response(
+        JSON.stringify({ error: 'Missing preferences in request body' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Log the received preferences for debugging
+    console.log("Received preferences:", JSON.stringify(preferences));
+
     const prompt = `You are an AI scheduler specialized in creating optimized weekly schedules to improve productivity and work-life balance.
 
 Based on these user preferences:
