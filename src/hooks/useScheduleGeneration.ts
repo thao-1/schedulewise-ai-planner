@@ -24,11 +24,11 @@ const useScheduleGeneration = () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            // Add Supabase anon key if needed
             'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY || '',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || ''}`,
           },
-          body: JSON.stringify({ 
-            preferences: JSON.parse(prompt) 
+          body: JSON.stringify({
+            preferences: JSON.parse(prompt)
           }),
         });
 
@@ -46,13 +46,13 @@ const useScheduleGeneration = () => {
 
         const result = await response.json();
         console.log('Schedule Result:', result);
-        
+
         if (result && result.schedule) {
           // The schedule is already parsed JSON from the Edge Function
           console.log('Parsed Schedule:', result.schedule);
-          
+
           localStorage.setItem('generatedSchedule', JSON.stringify(result.schedule));
-          
+
           onSuccess?.(result.schedule);
         } else {
           console.error('Invalid schedule format received from API');
@@ -79,7 +79,14 @@ const useScheduleGeneration = () => {
   );
 
   const syncScheduleToGoogleCalendar = async (scheduleData: any[], accessToken: string, timezone: string) => {
+    console.log("syncScheduleToGoogleCalendar called with:", {
+      scheduleDataLength: scheduleData?.length || 0,
+      accessTokenExists: !!accessToken,
+      timezone
+    });
+
     if (!scheduleData || scheduleData.length === 0) {
+      console.error("No schedule data available");
       toast({
         title: "No schedule data available",
         description: "Please generate a schedule first.",
@@ -89,6 +96,7 @@ const useScheduleGeneration = () => {
     }
 
     if (!accessToken) {
+      console.error("No access token provided");
       toast({
         title: "Authentication required",
         description: "Please connect to Google Calendar first.",
@@ -99,21 +107,35 @@ const useScheduleGeneration = () => {
 
     try {
       setIsLoading(true);
-      // Instead of using googleapis directly, make a call to your API
-      const response = await fetch('/api/syncGoogleCalendar', {
+      console.log("Calling Supabase Edge Function for Google Calendar sync");
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      console.log("Supabase URL:", supabaseUrl);
+      console.log("Supabase Anon Key exists:", !!supabaseAnonKey);
+
+      // Call the Supabase Edge Function
+      const response = await fetch(`${supabaseUrl}/functions/v1/sync-google-calendar`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`
+          'Authorization': `Bearer ${accessToken}`,
+          'apikey': supabaseAnonKey || '',
         },
         body: JSON.stringify({
-          events: scheduleData,
+          schedule: scheduleData,
           timezone
         }),
       });
 
+      console.log("Response status:", response.status);
+
+      const responseData = await response.json();
+      console.log("Response data:", responseData);
+
       if (!response.ok) {
-        throw new Error(`Failed to sync calendar: ${response.status}`);
+        throw new Error(`Failed to sync calendar: ${response.status} - ${responseData.error || 'Unknown error'}`);
       }
 
       toast({
@@ -139,12 +161,12 @@ const useScheduleGeneration = () => {
     const currentDayOfWeek = now.getDay();
     const daysToAdd = (dayOfWeek - currentDayOfWeek + 7) % 7;
     const nextDate = new Date(now.setDate(now.getDate() + daysToAdd));
-  
+
     const eventDate = new Date(nextDate);
     eventDate.setHours(Math.floor(hour));
     eventDate.setMinutes(Math.round((hour % 1) * 60));
     eventDate.setSeconds(0);
-  
+
     return eventDate.toISOString();
   };
 

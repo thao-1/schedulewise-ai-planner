@@ -51,46 +51,36 @@ serve(async (req) => {
       );
     }
 
-    // Extract the JWT token
-    const jwtToken = authHeader.replace('Bearer ', '');
-    console.log("JWT token extracted from request");
+    // Extract the token - this should be the Google access token directly
+    const googleAccessToken = authHeader.replace('Bearer ', '');
+    console.log("Google access token extracted from request");
 
-    // Get Supabase environment variables
-    const supabaseUrl = Deno.env.get('API_URL') || '';
-    const supabaseKey = Deno.env.get('SERVICE_ROLE_KEY') || '';
+    // Validate the token by making a simple request to Google API
+    try {
+      const validateResponse = await fetch('https://www.googleapis.com/oauth2/v1/tokeninfo', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${googleAccessToken}`
+        }
+      });
 
-    if (!supabaseUrl || !supabaseKey) {
-      console.error("Missing API_URL or SERVICE_ROLE_KEY environment variables");
-      throw new Error('Server configuration error - missing required environment variables');
-    }
-
-    console.log("Getting user info from Supabase");
-
-    // Get user info from Supabase
-    const userResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
-      headers: {
-        'Authorization': `Bearer ${jwtToken}`,
-        'apikey': supabaseKey
+      if (!validateResponse.ok) {
+        const errorText = await validateResponse.text();
+        console.error(`Invalid Google token. Status: ${validateResponse.status}, Response: ${errorText}`);
+        throw new Error('Invalid Google access token. Please reconnect your Google account.');
       }
-    });
 
-    if (!userResponse.ok) {
-      const errorText = await userResponse.text();
-      console.error(`Failed to verify user token. Status: ${userResponse.status}, Response: ${errorText}`);
-      throw new Error('Failed to verify user token');
-    }
+      const tokenInfo = await validateResponse.json();
+      console.log("Google token validated successfully. Scopes:", tokenInfo.scope);
 
-    const userData = await userResponse.json();
-    console.log("User data retrieved from Supabase", userData);
-
-    // Get the user's Google access token
-    const googleAccessToken = userData.app_metadata?.provider_token || userData.provider_token;
-
-    if (!googleAccessToken) {
-      console.error("No Google access token found in user data", userData);
-      console.error("app_metadata:", userData.app_metadata);
-      console.error("User is authenticated with provider:", userData.app_metadata?.provider);
-      throw new Error('No Google access token found. Please reconnect your Google account.');
+      // Check if the token has the necessary scopes
+      if (!tokenInfo.scope.includes('https://www.googleapis.com/auth/calendar')) {
+        console.error("Token does not have calendar scope");
+        throw new Error('Google token does not have calendar access. Please reconnect with calendar permissions.');
+      }
+    } catch (error) {
+      console.error("Error validating Google token:", error);
+      throw new Error('Failed to validate Google token: ' + error.message);
     }
 
     console.log("Google access token found, preparing to create calendar events");

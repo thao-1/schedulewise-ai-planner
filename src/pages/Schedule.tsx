@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
   CardTitle,
   CardFooter
 } from '@/components/ui/card';
@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import { PlusCircle, Download, Upload } from 'lucide-react';
 import useScheduleGeneration from '@/hooks/useScheduleGeneration';
 import { useToast } from '@/components/ui/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const Schedule = () => {
   const [scheduleData, setScheduleData] = useState<any[]>([]);
@@ -30,7 +31,7 @@ const Schedule = () => {
         if (savedSchedule) {
           const parsedSchedule = JSON.parse(savedSchedule);
           setScheduleData(parsedSchedule);
-          
+
           if (selectedDate) {
             // Filter events for the selected day
             const dayOfWeek = selectedDate.getDay(); // 0 for Sunday, 1 for Monday, etc.
@@ -52,26 +53,106 @@ const Schedule = () => {
 
   const handleSyncToGoogle = async () => {
     try {
-      // In a real implementation, this would get the token from your auth provider
-      const accessToken = localStorage.getItem('googleAccessToken') || '';
-      
-      if (!accessToken) {
+      console.log("Starting Google Calendar sync process");
+
+      // First, check if we have a schedule
+      if (!scheduleData || scheduleData.length === 0) {
         toast({
-          title: "Authentication required",
-          description: "Please connect to Google Calendar first in Settings.",
+          title: "No schedule data",
+          description: "Please generate a schedule first.",
           variant: "destructive"
         });
         return;
       }
-      
+
+      // Try to get the Google access token from localStorage first
+      let accessToken = localStorage.getItem('googleAccessToken');
+      console.log("Google access token from localStorage:", accessToken ? "Found" : "Not found");
+
+      // If no token in localStorage, try to get it from the session
+      if (!accessToken) {
+        const { data: { session } } = await supabase.auth.getSession();
+        console.log("Supabase session:", session ? "Found" : "Not found");
+
+        if (!session) {
+          toast({
+            title: "Authentication required",
+            description: "Please sign in to use this feature.",
+            variant: "destructive"
+          });
+          return;
+        }
+
+        // Check if the user is authenticated with Google
+        const provider = session.user?.app_metadata?.provider;
+        console.log("Auth provider:", provider);
+
+        if (provider !== 'google') {
+          toast({
+            title: "Google authentication required",
+            description: "Please connect with Google Calendar first.",
+            variant: "destructive"
+          });
+
+          // Prompt the user to connect with Google
+          const connectWithGoogle = confirm("Would you like to connect with Google Calendar now?");
+          if (connectWithGoogle) {
+            try {
+              const { error } = await supabase.auth.signInWithOAuth({
+                provider: 'google',
+                options: {
+                  scopes: 'https://www.googleapis.com/auth/calendar',
+                  redirectTo: `${window.location.origin}/schedule`
+                }
+              });
+
+              if (error) throw error;
+            } catch (error: any) {
+              console.error("Error connecting with Google:", error);
+              toast({
+                title: "Connection failed",
+                description: error.message || "Failed to connect with Google.",
+                variant: "destructive"
+              });
+            }
+          }
+          return;
+        }
+
+        // Get the provider token
+        accessToken = session.provider_token;
+        console.log("Provider token exists:", !!accessToken);
+
+        if (accessToken) {
+          // Store it for future use
+          localStorage.setItem('googleAccessToken', accessToken);
+          console.log("Stored Google access token in localStorage");
+        } else {
+          toast({
+            title: "Authentication error",
+            description: "Could not get Google access token. Please connect with Google Calendar again.",
+            variant: "destructive"
+          });
+          return;
+        }
+      }
+
+      console.log("Google access token obtained, proceeding with sync");
+      console.log("Schedule data items:", scheduleData?.length || 0);
+
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      await syncScheduleToGoogleCalendar(scheduleData, accessToken, timezone);
-      
+      console.log("Using timezone:", timezone);
+
+      // Use the Google access token
+      const result = await syncScheduleToGoogleCalendar(scheduleData, accessToken, timezone);
+      console.log("Sync result:", result);
+
       toast({
         title: "Schedule synced",
         description: "Your schedule has been successfully synced to Google Calendar."
       });
     } catch (error: any) {
+      console.error('Error syncing to Google Calendar:', error);
       toast({
         title: "Sync failed",
         description: error.message || "Failed to sync with Google Calendar.",
@@ -128,7 +209,7 @@ const Schedule = () => {
             </CardFooter>
           </Card>
         </div>
-        
+
         <div className="md:w-2/3">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-2xl font-bold">
@@ -139,7 +220,7 @@ const Schedule = () => {
               Add Event
             </Button>
           </div>
-          
+
           {selectedDayEvents.length > 0 ? (
             <div className="space-y-4">
               {selectedDayEvents
