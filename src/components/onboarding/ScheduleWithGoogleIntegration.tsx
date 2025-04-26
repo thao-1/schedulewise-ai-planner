@@ -13,10 +13,10 @@ interface ScheduleWithGoogleIntegrationProps {
   scheduleData: any[];
 }
 
-const ScheduleWithGoogleIntegration: React.FC<ScheduleWithGoogleIntegrationProps> = ({ 
-  onComplete, 
-  onSkip, 
-  scheduleData 
+const ScheduleWithGoogleIntegration: React.FC<ScheduleWithGoogleIntegrationProps> = ({
+  onComplete,
+  onSkip,
+  scheduleData
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,13 +37,13 @@ const ScheduleWithGoogleIntegration: React.FC<ScheduleWithGoogleIntegrationProps
     const checkGoogleAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        
+
         if (session) {
           const provider = session.user?.app_metadata?.provider;
-          
+
           if (provider === 'google') {
             setIsConnected(true);
-            
+
             // Store the provider token if available
             if (session.provider_token) {
               localStorage.setItem('googleAccessToken', session.provider_token);
@@ -53,7 +53,7 @@ const ScheduleWithGoogleIntegration: React.FC<ScheduleWithGoogleIntegrationProps
 
         const hash = window.location.hash;
         const search = window.location.search;
-        
+
         if (hash && hash.includes('access_token')) {
           const params = new URLSearchParams(hash.substring(1));
           if (params.has('access_token')) {
@@ -63,7 +63,7 @@ const ScheduleWithGoogleIntegration: React.FC<ScheduleWithGoogleIntegrationProps
             toast.success('Successfully connected with Google!');
           }
         }
-        
+
         const urlParams = new URLSearchParams(search);
         if (urlParams.get('provider') === 'google') {
           setIsConnected(true);
@@ -90,12 +90,16 @@ const ScheduleWithGoogleIntegration: React.FC<ScheduleWithGoogleIntegrationProps
 
       setIsLoading(true);
       setError(null);
-      
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           scopes: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar',
           redirectTo: `${window.location.origin}/onboarding`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
         }
       });
 
@@ -122,40 +126,66 @@ const ScheduleWithGoogleIntegration: React.FC<ScheduleWithGoogleIntegrationProps
     try {
       // Get user timezone or use default
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      
-      // Get the Google access token from localStorage
-      const accessToken = localStorage.getItem('googleAccessToken');
-      
-      if (!accessToken) {
-        // Try to get it from the session as a fallback
-        const { data: { session } } = await supabase.auth.getSession();
-        const sessionToken = session?.provider_token;
-        
-        if (!sessionToken) {
-          toast.error('Authentication required', {
-            description: 'Please connect with Google Calendar first'
-          });
-          return;
-        }
-        
-        // Store it for future use
-        localStorage.setItem('googleAccessToken', sessionToken);
+
+      // Get the current Supabase session
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        toast.error('Authentication required', {
+          description: 'Please sign in to use this feature'
+        });
+        return;
       }
-      
+
+      // Check if the user is authenticated with Google
+      const provider = session.user?.app_metadata?.provider;
+      console.log("Auth provider:", provider);
+
+      if (provider !== 'google') {
+        toast.error('Google authentication required', {
+          description: 'Please connect with Google Calendar first'
+        });
+        return;
+      }
+
+      // Get the provider token (Google access token)
+      const accessToken = session.provider_token;
+      console.log("Provider token exists:", !!accessToken);
+
+      if (!accessToken) {
+        toast.error('Google token not found', {
+          description: 'Please reconnect with Google Calendar'
+        });
+
+        // Prompt to reconnect
+        const reconnect = confirm("Would you like to reconnect with Google Calendar now?");
+        if (reconnect) {
+          await handleGoogleIntegration();
+        }
+        return;
+      }
+
+      // Store the token for future use
+      localStorage.setItem('googleAccessToken', accessToken);
+      console.log("Using Google access token starting with:", accessToken.substring(0, 10) + "...");
+
       const success = await syncScheduleToGoogleCalendar(
-        scheduleData, 
-        accessToken || localStorage.getItem('googleAccessToken') || '', 
+        scheduleData,
+        accessToken,
         timezone
       );
-      
+
       if (success) {
+        toast.success('Schedule synced to Google Calendar');
         setTimeout(() => {
           onComplete();
         }, 2000);
       }
     } catch (err) {
       console.error('Error syncing schedule:', err);
-      toast.error('Failed to sync schedule');
+      toast.error('Failed to sync schedule', {
+        description: err instanceof Error ? err.message : 'Unknown error'
+      });
     }
   };
 
@@ -218,7 +248,7 @@ const ScheduleWithGoogleIntegration: React.FC<ScheduleWithGoogleIntegrationProps
                 </p>
               </div>
             </div>
-            
+
             {isConnected ? (
               <Button
                 onClick={handleSyncSchedule}

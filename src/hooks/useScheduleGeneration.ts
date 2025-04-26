@@ -82,6 +82,7 @@ const useScheduleGeneration = () => {
     console.log("syncScheduleToGoogleCalendar called with:", {
       scheduleDataLength: scheduleData?.length || 0,
       accessTokenExists: !!accessToken,
+      accessTokenLength: accessToken?.length || 0,
       timezone
     });
 
@@ -114,6 +115,15 @@ const useScheduleGeneration = () => {
 
       console.log("Supabase URL:", supabaseUrl);
       console.log("Supabase Anon Key exists:", !!supabaseAnonKey);
+      console.log("Access token starts with:", accessToken.substring(0, 10) + "...");
+
+      // Prepare the request body
+      const requestBody = {
+        schedule: scheduleData,
+        timezone
+      };
+
+      console.log("Request body sample:", JSON.stringify(requestBody).substring(0, 200) + "...");
 
       // Call the Supabase Edge Function
       const response = await fetch(`${supabaseUrl}/functions/v1/sync-google-calendar`, {
@@ -123,16 +133,21 @@ const useScheduleGeneration = () => {
           'Authorization': `Bearer ${accessToken}`,
           'apikey': supabaseAnonKey || '',
         },
-        body: JSON.stringify({
-          schedule: scheduleData,
-          timezone
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       console.log("Response status:", response.status);
 
-      const responseData = await response.json();
-      console.log("Response data:", responseData);
+      // Try to parse the response as JSON
+      let responseData;
+      try {
+        responseData = await response.json();
+        console.log("Response data:", responseData);
+      } catch (e) {
+        const textResponse = await response.text();
+        console.error("Failed to parse response as JSON:", textResponse);
+        throw new Error(`Failed to parse response: ${textResponse.substring(0, 100)}`);
+      }
 
       if (!response.ok) {
         throw new Error(`Failed to sync calendar: ${response.status} - ${responseData.error || 'Unknown error'}`);
@@ -140,7 +155,7 @@ const useScheduleGeneration = () => {
 
       toast({
         title: "Schedule synced to Google Calendar",
-        description: "Your schedule has been successfully synced to your Google Calendar."
+        description: responseData.message || "Your schedule has been successfully synced to your Google Calendar."
       });
       return true;
     } catch (error: any) {

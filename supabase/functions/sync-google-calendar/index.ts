@@ -54,9 +54,11 @@ serve(async (req) => {
     // Extract the token - this should be the Google access token directly
     const googleAccessToken = authHeader.replace('Bearer ', '');
     console.log("Google access token extracted from request");
+    console.log("Token starts with:", googleAccessToken.substring(0, 10) + "...");
 
     // Validate the token by making a simple request to Google API
     try {
+      console.log("Validating Google token with tokeninfo endpoint");
       const validateResponse = await fetch('https://www.googleapis.com/oauth2/v1/tokeninfo', {
         method: 'GET',
         headers: {
@@ -64,18 +66,37 @@ serve(async (req) => {
         }
       });
 
+      console.log("Token validation response status:", validateResponse.status);
+
       if (!validateResponse.ok) {
         const errorText = await validateResponse.text();
         console.error(`Invalid Google token. Status: ${validateResponse.status}, Response: ${errorText}`);
-        throw new Error('Invalid Google access token. Please reconnect your Google account.');
+
+        // Try to get more information about the error
+        console.log("Attempting to get more detailed error information");
+        try {
+          const errorJson = JSON.parse(errorText);
+          console.error("Detailed error:", JSON.stringify(errorJson, null, 2));
+        } catch (e) {
+          console.error("Could not parse error response as JSON");
+        }
+
+        throw new Error(`Invalid Google access token (status ${validateResponse.status}). Please reconnect your Google account.`);
       }
 
       const tokenInfo = await validateResponse.json();
-      console.log("Google token validated successfully. Scopes:", tokenInfo.scope);
+      console.log("Google token validated successfully.");
+      console.log("Token info:", JSON.stringify({
+        audience: tokenInfo.audience,
+        scope: tokenInfo.scope,
+        expires_in: tokenInfo.expires_in,
+        email: tokenInfo.email,
+        issued_to: tokenInfo.issued_to
+      }, null, 2));
 
       // Check if the token has the necessary scopes
-      if (!tokenInfo.scope.includes('https://www.googleapis.com/auth/calendar')) {
-        console.error("Token does not have calendar scope");
+      if (!tokenInfo.scope || !tokenInfo.scope.includes('https://www.googleapis.com/auth/calendar')) {
+        console.error("Token does not have calendar scope. Available scopes:", tokenInfo.scope);
         throw new Error('Google token does not have calendar access. Please reconnect with calendar permissions.');
       }
     } catch (error) {
