@@ -191,6 +191,10 @@ const ScheduleWithGoogleIntegration: React.FC<ScheduleWithGoogleIntegrationProps
 
   // Helper function to format time
   const formatTime = (hour: number) => {
+    // Handle edge cases
+    if (hour < 0) hour = 0;
+    if (hour >= 24) hour = hour % 24;
+
     const hourPart = Math.floor(hour);
     const minutePart = Math.round((hour - hourPart) * 60);
     const period = hourPart >= 12 ? 'PM' : 'AM';

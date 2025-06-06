@@ -29,36 +29,56 @@ serve(async (req) => {
     // Log the received preferences for debugging
     console.log("Received preferences:", JSON.stringify(preferences));
 
-    const prompt = `You are an AI scheduler specialized in creating optimized weekly schedules to improve productivity and work-life balance.
+    const prompt = `You are an AI scheduler specialized in creating realistic weekly work schedules that optimize productivity and work-life balance.
 
 Based on these user preferences:
 - Work hours: ${preferences.workHours}
-- Deep work hours needed: ${preferences.deepWorkHours}
+- Deep work hours needed: ${preferences.deepWorkHours} hours per day
 - Personal activities: ${preferences.personalActivities.join(', ')}
-- Workout time: ${preferences.workoutTime}
+- Workout time preference: ${preferences.workoutTime}
 - Meeting preference: ${preferences.meetingPreference}
 - Meetings per day: ${preferences.meetingsPerDay}
 - Auto-reschedule preference: ${preferences.autoReschedule ? 'Yes' : 'No'}
-- Custom preferences: ${preferences.customPreferences}
+- Additional custom preferences: ${preferences.customPreferences || 'None specified'}
 
-Generate a comprehensive weekly schedule that optimizes for productivity and work-life balance. Include all daily activities from wake-up time to bedtime, with appropriate time blocks for:
-- Sleep (recommend 8 hours)
-- Meals (breakfast, lunch, dinner)
-- Work tasks with clear deep work blocks
-- Meetings positioned according to their preference
-- Personal activities (${preferences.personalActivities.join(', ')})
-- Commute time if relevant
-- Breaks and relaxation periods
+PRIORITY INSTRUCTIONS:
+1. If there are specific requests in the "Additional custom preferences" field, PRIORITIZE and FOLLOW those requests above all other preferences.
+2. Create a realistic work schedule for Monday through Friday (weekdays).
+3. Include lighter schedules for Saturday and Sunday (weekends) with more personal time.
 
-Return ONLY a valid JSON array of events with these properties: 
-- day (0-6, where 0 is Sunday)
-- hour (integer, 24-hour format)
-- title (string, descriptive of the activity)
-- duration (in hours, can be fractional like 0.5)
-- type (one of: sleep/work/meeting/deep-work/workout/meals/learning/relaxation/commute)`;
+SCHEDULE STRUCTURE:
+- Morning routine starts at 6:00 AM with wake-up activities
+- Default sleep schedule: 10:00 PM to 6:00 AM (8 hours) unless custom preferences specify otherwise
+- Include realistic commute times if work is not remote
+- Schedule meals at appropriate times: breakfast (7-8 AM), lunch (12-1 PM), dinner (6-7 PM)
+- Distribute deep work blocks according to user's specified hours per day
+- Position meetings according to user's meeting preference
+- Include the requested personal activities at appropriate times
+- Add short breaks between intensive work sessions
+
+WEEKDAY SCHEDULE (Monday-Friday):
+- 6:00 AM: Wake up
+- 7:00-8:00 AM: Morning routine + breakfast
+- Work hours as specified by user
+- Include specified deep work hours within work time
+- Schedule meetings according to preference
+- Include lunch break
+- End work day according to specified work hours
+- Evening: dinner, personal activities, relaxation
+- 10:00 PM: Sleep (unless custom preferences specify different bedtime)
+
+WEEKEND SCHEDULE (Saturday-Sunday):
+- More flexible timing
+- Focus on personal activities, relaxation, and hobbies
+- Lighter schedule with more free time
+- Still include meals and adequate sleep
+
+Using users' answers to create a schedule based on their preferences.
+
+Generate a complete week with all necessary activities for a balanced, productive schedule.`;
 
     console.log("Sending request to OpenAI with prompt");
-    
+
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -81,18 +101,18 @@ Return ONLY a valid JSON array of events with these properties:
 
     const data = await response.json();
     console.log("OpenAI response received");
-    
+
     if (!data.choices || !data.choices[0] || !data.choices[0].message) {
       console.error("Unexpected OpenAI response structure:", JSON.stringify(data));
       throw new Error("Invalid response from OpenAI");
     }
-    
+
     const content = data.choices[0].message.content;
-    
+
     try {
       // Parse the JSON content from the OpenAI response
       const parsedContent = JSON.parse(content);
-      
+
       // Extract the schedule array from the parsed content
       let schedule;
       if (Array.isArray(parsedContent)) {
@@ -103,19 +123,19 @@ Return ONLY a valid JSON array of events with these properties:
         schedule = parsedContent.events;
       } else {
         // Look for any array property in the response
-        const arrayProps = Object.keys(parsedContent).filter(key => 
+        const arrayProps = Object.keys(parsedContent).filter(key =>
           Array.isArray(parsedContent[key])
         );
-        
+
         if (arrayProps.length > 0) {
           schedule = parsedContent[arrayProps[0]];
         } else {
           throw new Error("Could not find schedule array in response");
         }
       }
-      
+
       console.log("Schedule parsed successfully with", schedule.length, "events");
-      
+
       return new Response(JSON.stringify({ schedule }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -126,7 +146,7 @@ Return ONLY a valid JSON array of events with these properties:
     }
   } catch (error) {
     console.error('Error in generate-schedule function:', error.message);
-    return new Response(JSON.stringify({ 
+    return new Response(JSON.stringify({
       error: error.message,
       details: "If this error persists, please contact support."
     }), {
