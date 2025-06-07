@@ -218,14 +218,21 @@ const ScheduleWithGoogleIntegration: React.FC<ScheduleWithGoogleIntegrationProps
     return colorMap[type] || 'bg-gray-50';
   };
 
-  // Group events by day
+  // Group events by day - with safety checks
   const eventsByDay: Record<number, any[]> = {};
-  scheduleData.forEach(event => {
-    if (!eventsByDay[event.day]) {
-      eventsByDay[event.day] = [];
-    }
-    eventsByDay[event.day].push(event);
-  });
+
+  // Ensure scheduleData is an array and has content
+  if (Array.isArray(scheduleData) && scheduleData.length > 0) {
+    scheduleData.forEach(event => {
+      // Validate event structure
+      if (event && typeof event.day === 'number' && event.day >= 0 && event.day <= 6) {
+        if (!eventsByDay[event.day]) {
+          eventsByDay[event.day] = [];
+        }
+        eventsByDay[event.day].push(event);
+      }
+    });
+  }
 
   // Day names
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -315,37 +322,59 @@ const ScheduleWithGoogleIntegration: React.FC<ScheduleWithGoogleIntegrationProps
 
       {/* Schedule Display */}
       <div className="space-y-6">
-        {Object.keys(eventsByDay).map((day) => (
-          <Card key={day} className="overflow-hidden">
-            <CardHeader className="bg-gray-50 pb-3">
-              <CardTitle>{dayNames[parseInt(day)]}</CardTitle>
-            </CardHeader>
-            <CardContent className="p-4">
-              <div className="space-y-3">
-                {eventsByDay[parseInt(day)]
-                  .sort((a, b) => a.hour - b.hour)
-                  .map((event, index) => (
-                    <div key={index} className={`p-3 rounded-md ${getEventColor(event.type)} border`}>
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h3 className="font-medium">{event.title}</h3>
-                          <p className="text-sm text-gray-600">
-                            {formatTime(event.hour)} - {formatTime(event.hour + event.duration)}
-                          </p>
-                          {event.description && (
-                            <p className="mt-1 text-sm">{event.description}</p>
-                          )}
+        {Object.keys(eventsByDay).length > 0 ? (
+          Object.keys(eventsByDay).map((day) => (
+            <Card key={day} className="overflow-hidden">
+              <CardHeader className="bg-gray-50 pb-3">
+                <CardTitle>{dayNames[parseInt(day)]}</CardTitle>
+              </CardHeader>
+              <CardContent className="p-4">
+                <div className="space-y-3">
+                  {eventsByDay[parseInt(day)]
+                    .sort((a, b) => a.hour - b.hour)
+                    .map((event, index) => (
+                      <div key={index} className={`p-3 rounded-md ${getEventColor(event.type)} border`}>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h3 className="font-medium">{event.title || 'Untitled Event'}</h3>
+                            <p className="text-sm text-gray-600">
+                              {formatTime(event.hour || 0)} - {formatTime((event.hour || 0) + (event.duration || 1))}
+                            </p>
+                            {event.description && (
+                              <p className="mt-1 text-sm">{event.description}</p>
+                            )}
+                          </div>
+                          <span className="px-2 py-1 text-xs rounded-full bg-white bg-opacity-50">
+                            {event.type || 'event'}
+                          </span>
                         </div>
-                        <span className="px-2 py-1 text-xs rounded-full bg-white bg-opacity-50">
-                          {event.type}
-                        </span>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        ) : (
+          <Card className="border-yellow-200 bg-yellow-50">
+            <CardContent className="p-6 text-center">
+              <h3 className="text-lg font-medium text-yellow-800 mb-2">No Schedule Data Available</h3>
+              <p className="text-yellow-700 mb-4">
+                It looks like your schedule wasn't generated properly. This could be due to a temporary issue.
+              </p>
+              <div className="flex justify-center gap-4">
+                <Button
+                  variant="outline"
+                  onClick={() => window.location.reload()}
+                >
+                  Refresh Page
+                </Button>
+                <Button onClick={onComplete}>
+                  Continue to Schedule Page
+                </Button>
               </div>
             </CardContent>
           </Card>
-        ))}
+        )}
       </div>
 
       {/* Navigation Buttons */}

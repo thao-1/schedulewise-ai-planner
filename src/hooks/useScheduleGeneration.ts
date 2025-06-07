@@ -17,8 +17,25 @@ const useScheduleGeneration = () => {
 
   const generateSchedule = useCallback(
     async ({ apiKey, prompt, email, timezone, onSuccess, onError }: ScheduleGenerationParams) => {
+      console.log("🚀 generateSchedule function called!");
+      console.log("🚀 Parameters:", { apiKey: !!apiKey, prompt, email, timezone });
+
       setIsLoading(true);
       try {
+        console.log("Calling Supabase Edge Function for schedule generation");
+        console.log("Prompt received:", prompt);
+
+        // Parse the prompt if it's a string, otherwise use it directly
+        let preferences;
+        try {
+          preferences = typeof prompt === 'string' ? JSON.parse(prompt) : prompt;
+        } catch (parseError) {
+          console.error("Error parsing prompt:", parseError);
+          throw new Error("Invalid preferences format");
+        }
+
+        console.log("Preferences being sent:", JSON.stringify(preferences, null, 2));
+
         // Change to call the Supabase Edge Function directly
         const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-schedule`, {
           method: 'POST',
@@ -28,12 +45,22 @@ const useScheduleGeneration = () => {
             'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || ''}`,
           },
           body: JSON.stringify({
-            preferences: JSON.parse(prompt)
+            preferences: preferences
           }),
         });
 
+        console.log("Response status:", response.status);
+        console.log("Response ok:", response.ok);
+
         if (!response.ok) {
-          const errorData = await response.json();
+          let errorData;
+          try {
+            errorData = await response.json();
+          } catch (e) {
+            const textError = await response.text();
+            console.error('API Error (text):', textError);
+            errorData = { error: textError };
+          }
           console.error('API Error:', errorData);
           toast({
             title: "Error generating schedule",
@@ -46,22 +73,26 @@ const useScheduleGeneration = () => {
 
         const result = await response.json();
         console.log('Schedule Result:', result);
+        console.log('Result type:', typeof result);
+        console.log('Result keys:', Object.keys(result || {}));
 
-        if (result && result.schedule) {
+        if (result && result.schedule && Array.isArray(result.schedule) && result.schedule.length > 0) {
           // The schedule is already parsed JSON from the Edge Function
           console.log('Parsed Schedule:', result.schedule);
+          console.log('Schedule length:', result.schedule.length);
 
           localStorage.setItem('generatedSchedule', JSON.stringify(result.schedule));
 
           onSuccess?.(result.schedule);
         } else {
-          console.error('Invalid schedule format received from API');
+          console.error('Invalid schedule format received from API:', result);
+          const errorMsg = result?.error || 'Invalid schedule format received from the server.';
           toast({
             title: "Error generating schedule",
-            description: "Invalid schedule format received from the server.",
+            description: errorMsg,
             variant: "destructive",
           })
-          onError?.('Invalid schedule format received from API');
+          onError?.(errorMsg);
         }
       } catch (error: any) {
         console.error('Error generating schedule:', error);

@@ -42,7 +42,10 @@ Based on these user preferences:
 - Additional custom preferences: ${preferences.customPreferences || 'None specified'}
 
 PRIORITY INSTRUCTIONS:
-1. If there are specific requests in the "Additional custom preferences" field, PRIORITIZE and FOLLOW those requests above all other preferences.
+1. **MOST IMPORTANT**: If there are ANY specific requests in the "Additional custom preferences" field, you MUST PRIORITIZE and FOLLOW those requests EXACTLY, even if they override the default schedule structure below.
+   - Example: If user says "I want to sleep at 11 PM on Thursday and 10 PM on other days", then create sleep events accordingly, NOT the default 10 PM schedule.
+   - Example: If user says "I want to workout at 5 AM", schedule workout at 5 AM, NOT during the default workout times.
+   - Custom preferences ALWAYS override default timings and structure.
 2. Create a realistic work schedule for Monday through Friday (weekdays).
 3. Include lighter schedules for Saturday and Sunday (weekends) with more personal time.
 
@@ -75,9 +78,26 @@ WEEKEND SCHEDULE (Saturday-Sunday):
 
 Using users' answers to create a schedule based on their preferences.
 
-Generate a complete week with all necessary activities for a balanced, productive schedule.`;
+Generate a complete week with all necessary activities for a balanced, productive schedule.
+
+IMPORTANT: Return ONLY a JSON array of events. Each event must have exactly these properties:
+- day: number (0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday)
+- hour: number (0-23, can be decimal like 7.5 for 7:30)
+- title: string (descriptive name of the activity)
+- duration: number (hours, can be decimal like 1.5 for 90 minutes)
+- type: string (one of: sleep, work, meeting, deep-work, workout, meals, learning, relaxation, commute)
+- description: string (optional, additional details)
+
+Example format:
+[
+  {"day": 1, "hour": 6, "title": "Wake up", "duration": 1, "type": "relaxation", "description": "Morning routine"},
+  {"day": 1, "hour": 7, "title": "Breakfast", "duration": 1, "type": "meals", "description": "Healthy breakfast"},
+  {"day": 1, "hour": 9, "title": "Deep Work", "duration": 3, "type": "deep-work", "description": "Focus time"}
+]`;
 
     console.log("Sending request to OpenAI with prompt");
+    console.log("OpenAI API Key exists:", !!openAIApiKey);
+    console.log("Prompt:", prompt.substring(0, 200) + "...");
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -101,6 +121,13 @@ Generate a complete week with all necessary activities for a balanced, productiv
 
     const data = await response.json();
     console.log("OpenAI response received");
+    console.log("Response status:", response.status);
+    console.log("Response data:", JSON.stringify(data, null, 2));
+
+    if (!response.ok) {
+      console.error("OpenAI API error:", data);
+      throw new Error(`OpenAI API error: ${data.error?.message || 'Unknown error'}`);
+    }
 
     if (!data.choices || !data.choices[0] || !data.choices[0].message) {
       console.error("Unexpected OpenAI response structure:", JSON.stringify(data));
@@ -108,10 +135,12 @@ Generate a complete week with all necessary activities for a balanced, productiv
     }
 
     const content = data.choices[0].message.content;
+    console.log("Raw content from OpenAI:", content);
 
     try {
       // Parse the JSON content from the OpenAI response
       const parsedContent = JSON.parse(content);
+      console.log("Parsed content:", JSON.stringify(parsedContent, null, 2));
 
       // Extract the schedule array from the parsed content
       let schedule;

@@ -34,6 +34,9 @@ const Onboarding = () => {
   const [generatedScheduleData, setGeneratedScheduleData] = useState<any>(null);
 
   const handleComplete = async () => {
+    console.log("🚀 handleComplete called!");
+    console.log("🚀 Current preferences:", preferences);
+
     setGenerationAttempted(true);
 
     try {
@@ -43,6 +46,9 @@ const Onboarding = () => {
         email: '',
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         onSuccess: (schedule) => {
+          console.log('Schedule generation successful:', schedule);
+          console.log('Schedule is array:', Array.isArray(schedule));
+          console.log('Schedule length:', schedule?.length);
           setGeneratedScheduleData(schedule);
           toast.success('Schedule generated successfully!');
           setShowGoogleStep(true);
@@ -98,16 +104,51 @@ const Onboarding = () => {
     }
   };
 
-  if (showGoogleStep && generatedScheduleData) {
-    return (
-      <div className="max-w-4xl mx-auto py-6 animate-fade-in">
-        <ScheduleWithGoogleIntegration
-          onComplete={handleGoogleComplete}
-          onSkip={handleSkipGoogle}
-          scheduleData={generatedScheduleData}
-        />
-      </div>
-    );
+  if (showGoogleStep) {
+    // If we have schedule data, show the schedule with Google integration
+    if (generatedScheduleData && Array.isArray(generatedScheduleData) && generatedScheduleData.length > 0) {
+      return (
+        <div className="max-w-4xl mx-auto py-6 animate-fade-in">
+          <ScheduleWithGoogleIntegration
+            onComplete={handleGoogleComplete}
+            onSkip={handleSkipGoogle}
+            scheduleData={generatedScheduleData}
+          />
+        </div>
+      );
+    } else {
+      // If no schedule data, show error and option to retry
+      return (
+        <div className="max-w-2xl mx-auto py-6 animate-fade-in">
+          <Card className="border-red-300 bg-red-50">
+            <CardContent className="pt-6">
+              <h3 className="text-lg font-medium text-red-800">Schedule Generation Failed</h3>
+              <p className="text-red-600 mt-2">
+                We couldn't generate your schedule. This might be due to a temporary issue with our AI service.
+              </p>
+              <div className="flex gap-4 mt-4">
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    setShowGoogleStep(false);
+                    setGenerationAttempted(false);
+                    setGenerationError(null);
+                  }}
+                >
+                  Try Again
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleSkipGoogle}
+                >
+                  Skip to Schedule Page
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
   }
 
   const renderStep = () => {
