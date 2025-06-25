@@ -11,18 +11,20 @@ interface GoogleCalendarSyncProps {
 export function GoogleCalendarSync({ schedule, onSyncComplete, onError }: GoogleCalendarSyncProps) {
   const { isAuthenticated, isLoading, error, login, syncSchedule } = useGoogleCalendar();
 
+  const handleAuth = async () => {
+    try {
+      await login();
+    } catch (err) {
+      console.error('Error authenticating with Google:', err);
+      if (onError) {
+        onError(err);
+      }
+    }
+  };
+
   const handleSync = async () => {
     try {
-      let token = localStorage.getItem('google_access_token');
-      
-      // If not authenticated, trigger login first
-      if (!token) {
-        token = await login();
-      }
-
-      // Now sync the schedule
       const result = await syncSchedule(schedule);
-      
       if (onSyncComplete) {
         onSyncComplete(result);
       }
@@ -43,7 +45,7 @@ export function GoogleCalendarSync({ schedule, onSyncComplete, onError }: Google
       )}
       
       <Button
-        onClick={handleSync}
+        onClick={isAuthenticated ? handleSync : handleAuth}
         disabled={isLoading}
         className="w-full sm:w-auto"
       >

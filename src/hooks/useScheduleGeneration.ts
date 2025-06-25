@@ -1,14 +1,13 @@
 
 import { useState, useCallback } from 'react';
 import { useToast } from "@/components/ui/use-toast";
+import { generateSchedule as generateScheduleAPI, type ScheduleEvent } from '@/api/generate-schedule';
+import type { SchedulePreferences } from '@/types/schedule';
 
 interface ScheduleGenerationParams {
-  apiKey: string;
-  prompt: string;
-  email: string;
-  timezone: string;
-  onSuccess?: (schedule: any) => void;
-  onError?: (error: any) => void;
+  prompt: string | SchedulePreferences;
+  onSuccess?: (schedule: ScheduleEvent[]) => void;
+  onError?: (error: string) => void;
 }
 
 const useScheduleGeneration = () => {
@@ -16,17 +15,16 @@ const useScheduleGeneration = () => {
   const { toast } = useToast();
 
   const generateSchedule = useCallback(
-    async ({ apiKey, prompt, email, timezone, onSuccess, onError }: ScheduleGenerationParams) => {
+    async ({ prompt, onSuccess, onError }: ScheduleGenerationParams) => {
       console.log("🚀 generateSchedule function called!");
-      console.log("🚀 Parameters:", { apiKey: !!apiKey, prompt, email, timezone });
+      console.log("🚀 Prompt:", prompt);
 
       setIsLoading(true);
       try {
-        console.log("Calling Supabase Edge Function for schedule generation");
-        console.log("Prompt received:", prompt);
-
+        console.log("Generating schedule with OpenAI");
+        
         // Parse the prompt if it's a string, otherwise use it directly
-        let preferences;
+        let preferences: SchedulePreferences;
         try {
           preferences = typeof prompt === 'string' ? JSON.parse(prompt) : prompt;
         } catch (parseError) {
@@ -36,63 +34,28 @@ const useScheduleGeneration = () => {
 
         console.log("Preferences being sent:", JSON.stringify(preferences, null, 2));
 
-        // Change to call the Supabase Edge Function directly
-        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-schedule`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY || '',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || ''}`,
-          },
-          body: JSON.stringify({
-            preferences: preferences
-          }),
-        });
-
-        console.log("Response status:", response.status);
-        console.log("Response ok:", response.ok);
-
-        if (!response.ok) {
-          let errorData;
-          try {
-            errorData = await response.json();
-          } catch (e) {
-            const textError = await response.text();
-            console.error('API Error (text):', textError);
-            errorData = { error: textError };
-          }
-          console.error('API Error:', errorData);
-          toast({
-            title: "Error generating schedule",
-            description: errorData.error || "Please check your preferences and try again.",
-            variant: "destructive",
-          })
-          onError?.(errorData);
-          throw new Error(`Failed to generate schedule: ${response.status}`);
-        }
-
-        const result = await response.json();
-        console.log('Schedule Result:', result);
-        console.log('Result type:', typeof result);
-        console.log('Result keys:', Object.keys(result || {}));
-
-        if (result && result.schedule && Array.isArray(result.schedule) && result.schedule.length > 0) {
-          // The schedule is already parsed JSON from the Edge Function
-          console.log('Parsed Schedule:', result.schedule);
-          console.log('Schedule length:', result.schedule.length);
-
-          localStorage.setItem('generatedSchedule', JSON.stringify(result.schedule));
-
-          onSuccess?.(result.schedule);
+        // Call our local API function
+        const result = await generateScheduleAPI(preferences);
+        
+        console.log("Generated schedule result:", result);
+        
+        if (result.success && result.data) {
+          // Successfully generated schedule
+          console.log('Generated schedule:', result.data);
+          localStorage.setItem('generatedSchedule', JSON.stringify(result.data));
+          onSuccess?.(result.data);
         } else {
-          console.error('Invalid schedule format received from API:', result);
-          const errorMsg = result?.error || 'Invalid schedule format received from the server.';
+          // Handle error case
+          const errorMessage = result.error || 'Failed to generate schedule';
+          console.error('Error generating schedule:', errorMessage);
+          
           toast({
             title: "Error generating schedule",
-            description: errorMsg,
+            description: errorMessage,
             variant: "destructive",
-          })
-          onError?.(errorMsg);
+          });
+          
+          onError?.(errorMessage);
         }
       } catch (error: any) {
         console.error('Error generating schedule:', error);
@@ -139,55 +102,20 @@ const useScheduleGeneration = () => {
 
     try {
       setIsLoading(true);
-      console.log("Calling Supabase Edge Function for Google Calendar sync");
+      console.log("Syncing schedule with Google Calendar");
 
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      // Import the syncWithGoogleCalendar function
+      const { syncWithGoogleCalendar } = await import('@/api/google-calendar');
 
-      console.log("Supabase URL:", supabaseUrl);
-      console.log("Supabase Anon Key exists:", !!supabaseAnonKey);
-      console.log("Access token starts with:", accessToken.substring(0, 10) + "...");
-
-      // Prepare the request body
-      const requestBody = {
-        schedule: scheduleData,
-        timezone
-      };
-
-      console.log("Request body sample:", JSON.stringify(requestBody).substring(0, 200) + "...");
-
-      // Call the Supabase Edge Function
-      const response = await fetch(`${supabaseUrl}/functions/v1/sync-google-calendar`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-          'apikey': supabaseAnonKey || '',
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      console.log("Response status:", response.status);
-
-      // Try to parse the response as JSON
-      let responseData;
-      try {
-        responseData = await response.json();
-        console.log("Response data:", responseData);
-      } catch (e) {
-        const textResponse = await response.text();
-        console.error("Failed to parse response as JSON:", textResponse);
-        throw new Error(`Failed to parse response: ${textResponse.substring(0, 100)}`);
-      }
-
-      if (!response.ok) {
-        throw new Error(`Failed to sync calendar: ${response.status} - ${responseData.error || 'Unknown error'}`);
-      }
+      // Call the sync function
+      const result = await syncWithGoogleCalendar(scheduleData, accessToken);
+      console.log("Google Calendar sync result:", result);
 
       toast({
-        title: "Schedule synced to Google Calendar",
-        description: responseData.message || "Your schedule has been successfully synced to your Google Calendar."
+        title: "Success",
+        description: "Schedule has been synced to Google Calendar",
       });
+
       return true;
     } catch (error: any) {
       console.error('Error syncing to Google Calendar:', error);

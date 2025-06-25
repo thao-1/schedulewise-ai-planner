@@ -11,38 +11,9 @@ export const syncWithGoogleCalendar = async (schedule: ScheduleEvent[], googleAc
   try {
     console.log(`Received schedule with ${schedule?.length || 0} events`);
 
-    // Validate the token by making a simple request to Google API
-    try {
-      console.log("Validating Google token with tokeninfo endpoint");
-      const validateResponse = await fetch('https://www.googleapis.com/oauth2/v1/tokeninfo', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${googleAccessToken}`
-        }
-      });
-
-      console.log("Token validation response status:", validateResponse.status);
-
-      if (!validateResponse.ok) {
-        const errorText = await validateResponse.text();
-        console.error(`Invalid Google token. Status: ${validateResponse.status}, Response: ${errorText}`);
-        throw new Error(`Invalid Google access token (status ${validateResponse.status}). Please reconnect your Google account.`);
-      }
-
-      const tokenInfo = await validateResponse.json();
-      console.log("Google token validated successfully.");
-
-      // Check if the token has the necessary scopes
-      if (!tokenInfo.scope || !tokenInfo.scope.includes('https://www.googleapis.com/auth/calendar')) {
-        console.error("Token does not have calendar scope. Available scopes:", tokenInfo.scope);
-        throw new Error('Google token does not have calendar access. Please reconnect with calendar permissions.');
-      }
-    } catch (error) {
-      console.error("Error validating Google token:", error);
-      throw new Error('Failed to validate Google token: ' + error.message);
+    if (!googleAccessToken) {
+      throw new Error("Google access token is missing. Please reconnect your Google account.");
     }
-
-    console.log("Google access token found, preparing to create calendar events");
 
     // Get events from the schedule and format for Google Calendar
     const googleEvents = schedule.map((event: ScheduleEvent) => {

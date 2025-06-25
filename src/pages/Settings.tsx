@@ -12,33 +12,16 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
-import { useAuth } from '@/contexts/AuthContext';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useTheme } from "next-themes";
 
 const Settings = () => {
-  const { user, signOut } = useAuth();
-  const [email, setEmail] = useState(user?.email || '');
+  const [email, setEmail] = useState('');
   const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [isSyncEnabled, setIsSyncEnabled] = useState(false);
   const { toast } = useToast();
   const { theme, setTheme } = useTheme();
 
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-      toast({
-        title: "Signed out",
-        description: "You have been successfully signed out.",
-      });
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message || "Failed to sign out. Please try again.",
-      });
-    }
-  };
 
   const handleEmailChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setEmail(event.target.value);
@@ -155,7 +138,6 @@ const Settings = () => {
         </CardContent>
         <div className="flex justify-end space-x-2 p-4">
           <Button variant="outline" onClick={handleSyncSchedule}>Sync Schedule</Button>
-          <Button variant="destructive" onClick={handleSignOut}>Sign Out</Button>
         </div>
       </Card>
     </div>

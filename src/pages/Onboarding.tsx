@@ -10,7 +10,6 @@ import { Loader2 } from 'lucide-react';
 import CustomPreferences from '@/components/CustomPreferences';
 import StepProgressBar from '@/components/onboarding/StepProgressBar';
 import { useOnboarding } from '@/hooks/useOnboarding';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import useScheduleGeneration from '@/hooks/useScheduleGeneration';
@@ -26,7 +25,9 @@ const Onboarding = () => {
     handleNext,
     handleBack
   } = useOnboarding();
-  const { generateSchedule, isLoading: isGenerating } = useScheduleGeneration();
+  const scheduleGeneration = useScheduleGeneration();
+  const generateSchedule = scheduleGeneration.generateSchedule;
+  const isGenerating = scheduleGeneration.isLoading;
   const navigate = useNavigate();
   const [showGoogleStep, setShowGoogleStep] = useState(false);
   const [generationAttempted, setGenerationAttempted] = useState(false);
@@ -40,11 +41,15 @@ const Onboarding = () => {
     setGenerationAttempted(true);
 
     try {
+      // Convert preferences to match SchedulePreferences type
+      const schedulePreferences = {
+        ...preferences,
+        deepWorkHours: parseInt(preferences.deepWorkHours, 10) || 4, // Convert string to number
+        meetingsPerDay: parseInt(preferences.meetingsPerDay, 10) || 0, // Convert string to number
+      };
+
       await generateSchedule({
-        apiKey: '',
-        prompt: JSON.stringify(preferences),
-        email: '',
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        prompt: schedulePreferences,
         onSuccess: (schedule) => {
           console.log('Schedule generation successful:', schedule);
           console.log('Schedule is array:', Array.isArray(schedule));
@@ -53,9 +58,10 @@ const Onboarding = () => {
           toast.success('Schedule generated successfully!');
           setShowGoogleStep(true);
         },
-        onError: (error) => {
-          setGenerationError(error.message || 'Unknown error');
-          toast.error('Schedule generation failed', {
+        onError: (error: string) => {
+          console.error('Error generating schedule:', error);
+          setGenerationError(error);
+          toast.error(error, {
             description: 'Please try again or contact support if the problem persists.'
           });
         }
@@ -69,40 +75,17 @@ const Onboarding = () => {
   };
 
   const handleGoogleComplete = () => {
-    navigate('/schedule');
+    navigate('/schedule', { state: { schedule: generatedScheduleData } });
   };
 
   const handleSkipGoogle = () => {
-    navigate('/schedule');
+    navigate('/schedule', { state: { schedule: generatedScheduleData } });
   };
 
   const handleScheduleGenerated = (data: any) => {
     setGeneratedScheduleData(data);
   };
 
-  const connectWithGoogle = async () => {
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          scopes: 'https://www.googleapis.com/auth/calendar',
-          redirectTo: `${window.location.origin}/onboarding`
-        }
-      });
-
-      if (error) {
-        toast.error('Failed to connect with Google', {
-          description: error.message
-        });
-      } else {
-        toast.success('Successfully initiated Google connection');
-      }
-    } catch (error) {
-      toast.error('Failed to connect with Google', {
-        description: (error as Error).message
-      });
-    }
-  };
 
   if (showGoogleStep) {
     // If we have schedule data, show the schedule with Google integration
@@ -357,17 +340,6 @@ const Onboarding = () => {
     <div className="max-w-2xl mx-auto py-6 animate-fade-in">
       <h2 className="text-3xl font-bold tracking-tight mb-6">Setup Your Preferences</h2>
 
-      <Card className="schedule-card mb-4">
-        <CardContent className="flex justify-center p-6">
-          <Button
-            variant="outline"
-            className="w-full max-w-md"
-            onClick={connectWithGoogle}
-          >
-            Connect with Google
-          </Button>
-        </CardContent>
-      </Card>
 
       <StepProgressBar steps={steps} currentStep={currentStep} />
 

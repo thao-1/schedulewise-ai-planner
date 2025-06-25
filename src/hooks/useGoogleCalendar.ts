@@ -31,6 +31,12 @@ export const useGoogleCalendar = () => {
 
   // Initialize Google OAuth2 client
   const initClient = (onSuccess: (token: string) => void) => {
+    if (!GOOGLE_CLIENT_ID) {
+      console.error("Google Client ID is not configured. Please check your environment variables.");
+      setError("Google integration is not configured.");
+      setIsLoading(false);
+      return;
+    }
     const script = document.createElement('script');
     script.src = 'https://accounts.google.com/gsi/client';
     script.async = true;

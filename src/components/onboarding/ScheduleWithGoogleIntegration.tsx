@@ -1,30 +1,38 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { AlertCircle, Calendar, Check, Upload } from 'lucide-react';
-import useScheduleGeneration from '@/hooks/useScheduleGeneration';
+import { AlertCircle, Calendar, Check, Loader2, Upload } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useGoogleCalendar } from '@/hooks/useGoogleCalendar';
+import { ScheduleEvent } from '@/api/generate-schedule';
 
 interface ScheduleWithGoogleIntegrationProps {
   onComplete: () => void;
   onSkip: () => void;
-  scheduleData: any[];
+  scheduleData: ScheduleEvent[];
 }
 
 const ScheduleWithGoogleIntegration: React.FC<ScheduleWithGoogleIntegrationProps> = ({
   onComplete,
   onSkip,
-  scheduleData
+  scheduleData = []
 }) => {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [isInIframe, setIsInIframe] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
-  const { syncScheduleToGoogleCalendar, isLoading: isSyncingToGoogle } = useScheduleGeneration();
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  
+  const { 
+    isAuthenticated, 
+    login, 
+    logout, 
+    syncSchedule, 
+    isLoading: isGoogleLoading,
+    error: googleError
+  } = useGoogleCalendar();
 
+  // Check if we're in an iframe (Google OAuth doesn't work in iframes)
   useEffect(() => {
     try {
       setIsInIframe(window.self !== window.top);
@@ -33,359 +41,174 @@ const ScheduleWithGoogleIntegration: React.FC<ScheduleWithGoogleIntegrationProps
     }
   }, []);
 
+  // Handle Google OAuth callback
   useEffect(() => {
-    const checkGoogleAuth = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-
-        if (session) {
-          const provider = session.user?.app_metadata?.provider;
-
-          if (provider === 'google') {
-            setIsConnected(true);
-
-            // Store the provider token if available
-            if (session.provider_token) {
-              localStorage.setItem('googleAccessToken', session.provider_token);
-            }
-          }
-        }
-
-        const hash = window.location.hash;
-        const search = window.location.search;
-
-        if (hash && hash.includes('access_token')) {
+    const handleOAuthCallback = async () => {
+      const hash = window.location.hash;
+      if (hash && hash.includes('access_token')) {
+        try {
           const params = new URLSearchParams(hash.substring(1));
-          if (params.has('access_token')) {
-            const accessToken = params.get('access_token');
-            localStorage.setItem('googleAccessToken', accessToken || '');
-            setIsConnected(true);
-            toast.success('Successfully connected with Google!');
+          const accessToken = params.get('access_token');
+          
+          if (accessToken) {
+            localStorage.setItem('google_access_token', accessToken);
+            toast.success('Successfully connected with Google');
+            // Clear the hash from the URL
+            window.history.replaceState({}, document.title, window.location.pathname);
           }
+        } catch (error) {
+          console.error('Error handling OAuth callback:', error);
+          setError('Failed to complete Google sign in. Please try again.');
+          toast.error('Failed to complete Google sign in');
         }
-
-        const urlParams = new URLSearchParams(search);
-        if (urlParams.get('provider') === 'google') {
-          setIsConnected(true);
-          toast.success('Successfully connected with Google!');
-        }
-      } catch (err) {
-        console.error('Error checking Google authentication:', err);
-        setError(err instanceof Error ? err.message : 'Unknown error occurred');
       }
     };
 
-    checkGoogleAuth();
+    handleOAuthCallback();
   }, []);
 
-  const handleGoogleIntegration = async () => {
+  const handleConnectGoogle = async () => {
     try {
-      if (isInIframe) {
-        setError('Google authentication cannot run in an iframe. Please open this page directly in a new tab.');
-        toast.error('Cannot authenticate in iframe', {
-          description: 'Please open this page in a new browser tab to connect with Google.'
-        });
-        return;
-      }
-
-      setIsLoading(true);
       setError(null);
-
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          scopes: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar',
-          redirectTo: `${window.location.origin}/onboarding`,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          }
-        }
-      });
-
-      if (error) {
-        setError(error.message);
-        toast.error('Failed to connect with Google', {
-          description: error.message
-        });
-      } else {
-        toast.success('Connecting to Google Calendar...');
-      }
+      await login();
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      setError(errorMessage);
-      toast.error('Failed to connect with Google', {
-        description: errorMessage
-      });
-    } finally {
-      setIsLoading(false);
+      console.error('Error connecting to Google:', error);
+      setError('Failed to connect with Google. Please try again.');
+      toast.error('Failed to connect with Google');
     }
   };
 
-  const handleSyncSchedule = async () => {
+  const handleSyncToGoogle = async () => {
+    if (!scheduleData || scheduleData.length === 0) {
+      setError('No schedule data available to sync');
+      toast.error('No schedule data available to sync');
+      return;
+    }
+
     try {
-      // Get user timezone or use default
-      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
-      // Get the current Supabase session
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session) {
-        toast.error('Authentication required', {
-          description: 'Please sign in to use this feature'
-        });
-        return;
-      }
-
-      // Check if the user is authenticated with Google
-      const provider = session.user?.app_metadata?.provider;
-      console.log("Auth provider:", provider);
-
-      if (provider !== 'google') {
-        toast.error('Google authentication required', {
-          description: 'Please connect with Google Calendar first'
-        });
-        return;
-      }
-
-      // Get the provider token (Google access token)
-      const accessToken = session.provider_token;
-      console.log("Provider token exists:", !!accessToken);
-
-      if (!accessToken) {
-        toast.error('Google token not found', {
-          description: 'Please reconnect with Google Calendar'
-        });
-
-        // Prompt to reconnect
-        const reconnect = confirm("Would you like to reconnect with Google Calendar now?");
-        if (reconnect) {
-          await handleGoogleIntegration();
-        }
-        return;
-      }
-
-      // Store the token for future use
-      localStorage.setItem('googleAccessToken', accessToken);
-      console.log("Using Google access token starting with:", accessToken.substring(0, 10) + "...");
-
-      const success = await syncScheduleToGoogleCalendar(
-        scheduleData,
-        accessToken,
-        timezone
-      );
-
-      if (success) {
-        toast.success('Schedule synced to Google Calendar');
-        setTimeout(() => {
-          onComplete();
-        }, 2000);
-      }
-    } catch (err) {
-      console.error('Error syncing schedule:', err);
-      toast.error('Failed to sync schedule', {
-        description: err instanceof Error ? err.message : 'Unknown error'
-      });
+      setIsSyncing(true);
+      setError(null);
+      
+      await syncSchedule(scheduleData);
+      toast.success('Schedule synced to Google Calendar!');
+      onComplete();
+    } catch (error) {
+      console.error('Error syncing to Google Calendar:', error);
+      setError('Failed to sync with Google Calendar. Please try again.');
+      toast.error('Failed to sync with Google Calendar');
+    } finally {
+      setIsSyncing(false);
     }
   };
 
-  // Helper function to format time
-  const formatTime = (hour: number) => {
-    // Handle edge cases
-    if (hour < 0) hour = 0;
-    if (hour >= 24) hour = hour % 24;
-
-    const hourPart = Math.floor(hour);
-    const minutePart = Math.round((hour - hourPart) * 60);
-    const period = hourPart >= 12 ? 'PM' : 'AM';
-    const hour12 = hourPart % 12 === 0 ? 12 : hourPart % 12;
-    return `${hour12}:${minutePart.toString().padStart(2, '0')} ${period}`;
-  };
-
-  // Helper function to get event color
-  const getEventColor = (type: string) => {
-    const colorMap: Record<string, string> = {
-      'meeting': 'bg-purple-50',
-      'deep-work': 'bg-green-50',
-      'workout': 'bg-orange-50',
-      'meals': 'bg-red-50',
-      'learning': 'bg-yellow-50',
-      'relaxation': 'bg-blue-50',
-      'work': 'bg-indigo-50',
-      'commute': 'bg-gray-50',
-      'sleep': 'bg-blue-100',
-    };
-    return colorMap[type] || 'bg-gray-50';
-  };
-
-  // Group events by day - with safety checks
-  const eventsByDay: Record<number, any[]> = {};
-
-  // Ensure scheduleData is an array and has content
-  if (Array.isArray(scheduleData) && scheduleData.length > 0) {
-    scheduleData.forEach(event => {
-      // Validate event structure
-      if (event && typeof event.day === 'number' && event.day >= 0 && event.day <= 6) {
-        if (!eventsByDay[event.day]) {
-          eventsByDay[event.day] = [];
-        }
-        eventsByDay[event.day].push(event);
-      }
-    });
+  if (isInIframe) {
+    return (
+      <div className="max-w-2xl mx-auto p-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Google Integration</CardTitle>
+            <CardDescription>
+              Google OAuth does not work in an iframe. Please open this page in a new tab.
+            </CardDescription>
+          </CardHeader>
+          <CardFooter>
+            <Button onClick={() => window.open(window.location.href, '_blank')}>
+              Open in New Tab
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    );
   }
 
-  // Day names
-  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
   return (
-    <div className="space-y-6">
-      <div className="space-y-2">
-        <h2 className="text-2xl font-bold">Your Generated Schedule</h2>
-        <p className="text-muted-foreground">
-          Here's your AI-generated schedule based on your preferences
-        </p>
-      </div>
+    <div className="max-w-2xl mx-auto p-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Sync with Google Calendar</CardTitle>
+          <CardDescription>
+            Connect your Google account to sync your schedule with Google Calendar.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {error && (
+            <div className="bg-red-50 text-red-600 p-3 rounded-md flex items-center gap-2">
+              <AlertCircle className="h-5 w-5" />
+              <span>{error}</span>
+            </div>
+          )}
 
-      {/* Google Integration Card */}
-      <Card className="border-blue-200 bg-blue-50">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between p-4 border rounded-md">
             <div className="flex items-center gap-3">
-              <Calendar className="h-5 w-5 text-blue-500" />
+              <div className="p-2 bg-blue-50 rounded-full">
+                <Calendar className="h-5 w-5 text-blue-600" />
+              </div>
               <div>
-                <h3 className="font-medium">Google Calendar Integration</h3>
-                <p className="text-sm text-blue-700">
-                  Connect and sync your schedule with Google Calendar
+                <h3 className="font-medium">Google Calendar</h3>
+                <p className="text-sm text-gray-500">
+                  {isAuthenticated ? 'Connected' : 'Not connected'}
                 </p>
               </div>
             </div>
-
-            {isConnected ? (
-              <Button
-                onClick={handleSyncSchedule}
-                disabled={isSyncingToGoogle}
-                size="sm"
-              >
-                {isSyncingToGoogle ? (
-                  <>Syncing...</>
-                ) : (
-                  <>
-                    <Upload className="mr-2 h-4 w-4" />
-                    Sync to Google Calendar
-                  </>
-                )}
-              </Button>
+            {isAuthenticated ? (
+              <div className="flex items-center gap-2 text-green-600">
+                <Check className="h-5 w-5" />
+                <span>Connected</span>
+              </div>
             ) : (
               <Button
-                onClick={handleGoogleIntegration}
-                disabled={isLoading || isInIframe}
-                size="sm"
+                onClick={handleConnectGoogle}
+                disabled={isGoogleLoading}
+                variant="outline"
               >
-                {isLoading ? 'Connecting...' : 'Connect Google Calendar'}
+                {isGoogleLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Connecting...
+                  </>
+                ) : 'Connect'}
               </Button>
             )}
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Error Messages */}
-      {isInIframe && (
-        <div className="p-4 bg-orange-50 border border-orange-200 rounded-md flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-orange-500 mt-0.5" />
-          <div>
-            <p className="text-orange-800 font-medium">Cannot authenticate in iframe</p>
-            <p className="text-orange-600 text-sm">
-              Google authentication will not work in an iframe for security reasons.
-              Please open this page directly in a new browser tab.
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-2"
-              onClick={() => window.open(window.location.href, '_blank')}
-            >
-              Open in new tab
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {error && !isInIframe && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-md flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-red-500 mt-0.5" />
-          <div>
-            <p className="text-red-800 font-medium">Google Integration Error</p>
-            <p className="text-red-600 text-sm">{error}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Schedule Display */}
-      <div className="space-y-6">
-        {Object.keys(eventsByDay).length > 0 ? (
-          Object.keys(eventsByDay).map((day) => (
-            <Card key={day} className="overflow-hidden">
-              <CardHeader className="bg-gray-50 pb-3">
-                <CardTitle>{dayNames[parseInt(day)]}</CardTitle>
-              </CardHeader>
-              <CardContent className="p-4">
-                <div className="space-y-3">
-                  {eventsByDay[parseInt(day)]
-                    .sort((a, b) => a.hour - b.hour)
-                    .map((event, index) => (
-                      <div key={index} className={`p-3 rounded-md ${getEventColor(event.type)} border`}>
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h3 className="font-medium">{event.title || 'Untitled Event'}</h3>
-                            <p className="text-sm text-gray-600">
-                              {formatTime(event.hour || 0)} - {formatTime((event.hour || 0) + (event.duration || 1))}
-                            </p>
-                            {event.description && (
-                              <p className="mt-1 text-sm">{event.description}</p>
-                            )}
-                          </div>
-                          <span className="px-2 py-1 text-xs rounded-full bg-white bg-opacity-50">
-                            {event.type || 'event'}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              </CardContent>
-            </Card>
-          ))
-        ) : (
-          <Card className="border-yellow-200 bg-yellow-50">
-            <CardContent className="p-6 text-center">
-              <h3 className="text-lg font-medium text-yellow-800 mb-2">No Schedule Data Available</h3>
-              <p className="text-yellow-700 mb-4">
-                It looks like your schedule wasn't generated properly. This could be due to a temporary issue.
-              </p>
-              <div className="flex justify-center gap-4">
+          {isAuthenticated && (
+            <div className="mt-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-medium">Sync Schedule</h3>
                 <Button
-                  variant="outline"
-                  onClick={() => window.location.reload()}
+                  onClick={handleSyncToGoogle}
+                  disabled={isSyncing || scheduleData.length === 0}
                 >
-                  Refresh Page
-                </Button>
-                <Button onClick={onComplete}>
-                  Continue to Schedule Page
+                  {isSyncing ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Syncing...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="mr-2 h-4 w-4" />
+                      Sync Now
+                    </>
+                  )}
                 </Button>
               </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
-      {/* Navigation Buttons */}
-      <div className="flex justify-between pt-4">
-        <Button variant="outline" onClick={onSkip}>
-          Skip Google Integration
-        </Button>
-        <Button onClick={onComplete}>
-          Go to Schedule
-        </Button>
-      </div>
+              <p className="text-sm text-gray-500">
+                Sync your generated schedule to your Google Calendar.
+              </p>
+            </div>
+          )}
+        </CardContent>
+        <CardFooter className="flex justify-between">
+          <Button variant="outline" onClick={onSkip}>
+            Skip for Now
+          </Button>
+          {isAuthenticated && (
+            <Button onClick={onComplete}>
+              Continue to Dashboard
+            </Button>
+          )}
+        </CardFooter>
+      </Card>
     </div>
   );
 };
