@@ -1,10 +1,6 @@
 // Test script for the generate-schedule Edge Function
 import fetch from 'node-fetch';
 
-const SUPABASE_URL = "https://xdqfmoouljpyidavrofb.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhkcWZtb291bGpweWlkYXZyb2ZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ3NDc1MTgsImV4cCI6MjA2MDMyMzUxOH0.eHNIlzynvLaD_U7riJ36P0XyNZZfOqvSkPvhGzKIe9E";
-
-// Sample preferences
 const preferences = {
   workHours: "9:00 AM - 5:00 PM",
   deepWorkHours: "3",
