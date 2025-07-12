@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -10,11 +10,9 @@ import { Loader2 } from 'lucide-react';
 import CustomPreferences from '@/components/CustomPreferences';
 import StepProgressBar from '@/components/onboarding/StepProgressBar';
 import { useOnboarding } from '@/hooks/useOnboarding';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import useScheduleGeneration from '@/hooks/useScheduleGeneration';
-import ScheduleWithGoogleIntegration from '@/components/onboarding/ScheduleWithGoogleIntegration';
 
 /*************  ✨ Windsurf Command ⭐  *************/
 /**
@@ -39,87 +37,41 @@ const Onboarding = () => {
   } = useOnboarding();
   const { generateSchedule, isLoading: isGenerating } = useScheduleGeneration();
   const navigate = useNavigate();
-  const [showGoogleStep, setShowGoogleStep] = useState(false);
-  const [generationAttempted, setGenerationAttempted] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
-  const [generatedScheduleData, setGeneratedScheduleData] = useState<any>(null);
+  const [generationAttempted, setGenerationAttempted] = useState(false);
 
   const handleComplete = async () => {
+    setGenerationError(null);
     setGenerationAttempted(true);
 
     try {
+      // Here you would typically save preferences to your backend
+      console.log('Preferences to save:', preferences);
+      
+      // Simulate API call to save preferences
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Generate schedule with required parameters
       await generateSchedule({
-        apiKey: '',
-        prompt: JSON.stringify(preferences),
-        email: '',
+        email: 'user@example.com', // Replace with actual user email
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        onSuccess: (schedule) => {
-          setGeneratedScheduleData(schedule);
+        apiKey: '', // You should get this from your environment variables
+        prompt: JSON.stringify(preferences),
+        onSuccess: () => {
           toast.success('Schedule generated successfully!');
-          setShowGoogleStep(true);
+          navigate('/dashboard');
         },
         onError: (error) => {
           setGenerationError(error.message || 'Unknown error');
-          toast.error('Schedule generation failed', {
-            description: 'Please try again or contact support if the problem persists.'
-          });
+          toast.error('Failed to generate schedule');
         }
       });
-    } catch (error: any) {
-      setGenerationError(error.message || 'Unknown error');
-      toast.error('Schedule generation failed', {
-        description: 'Please try again or contact support if the problem persists.'
-      });
-    }
-  };
-
-  const handleGoogleComplete = () => {
-    navigate('/schedule');
-  };
-
-  const handleSkipGoogle = () => {
-    navigate('/schedule');
-  };
-
-  const handleScheduleGenerated = (data: any) => {
-    setGeneratedScheduleData(data);
-  };
-
-  const connectWithGoogle = async () => {
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          scopes: 'https://www.googleapis.com/auth/calendar',
-          redirectTo: `${window.location.origin}/onboarding`
-        }
-      });
-
-      if (error) {
-        toast.error('Failed to connect with Google', {
-          description: error.message
-        });
-      } else {
-        toast.success('Successfully initiated Google connection');
-      }
     } catch (error) {
-      toast.error('Failed to connect with Google', {
-        description: (error as Error).message
-      });
+      console.error('Error completing onboarding:', error);
+      setGenerationError('An unexpected error occurred. Please try again.');
+      toast.error('Failed to complete onboarding');
     }
   };
-
-  if (showGoogleStep && generatedScheduleData) {
-    return (
-      <div className="max-w-4xl mx-auto py-6 animate-fade-in">
-        <ScheduleWithGoogleIntegration
-          onComplete={handleGoogleComplete}
-          onSkip={handleSkipGoogle}
-          scheduleData={generatedScheduleData}
-        />
-      </div>
-    );
-  }
 
   const renderStep = () => {
     switch (currentStep) {
@@ -328,14 +280,12 @@ const Onboarding = () => {
       <h2 className="text-3xl font-bold tracking-tight mb-6">Setup Your Preferences</h2>
 
       <Card className="schedule-card mb-4">
-        <CardContent className="flex justify-center p-6">
-          <Button
-            variant="outline"
-            className="w-full max-w-md"
-            onClick={connectWithGoogle}
-          >
-            Connect with Google
-          </Button>
+        <CardContent className="p-6">
+          <div className="mt-4 p-4 border rounded-md bg-muted/50">
+            <p className="text-sm text-muted-foreground">
+              Google Calendar integration will be available in a future update.
+            </p>
+          </div>
         </CardContent>
       </Card>
 

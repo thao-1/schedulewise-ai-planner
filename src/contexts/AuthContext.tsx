@@ -1,16 +1,13 @@
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { Session } from '@supabase/supabase-js';
+import React, { createContext, useContext, useState, ReactNode } from 'react';
 
 interface User {
   id: string;
-  email?: string;
-  name?: string;
+  email: string;
+  name: string;
 }
 
 interface AuthContextType {
-  session: Session | null;
   user: User | null;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
@@ -20,71 +17,50 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    // Check active session and set up subscription
-    const getSession = async () => {
-      setIsLoading(true);
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        setSession(session);
-        
-        if (session?.user) {
-          setUser({
-            id: session.user.id,
-            email: session.user.email || undefined,
-            name: session.user.user_metadata?.full_name,
-          });
-        }
-      } catch (error) {
-        console.error('Error getting session:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    getSession();
-
-    // Set up auth state change listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-        if (session?.user) {
-          setUser({
-            id: session.user.id,
-            email: session.user.email || undefined,
-            name: session.user.user_metadata?.full_name,
-          });
-        } else {
-          setUser(null);
-        }
-        setIsLoading(false);
-      }
-    );
-
-    // Clean up subscription when component unmounts
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
+  const [isLoading, setIsLoading] = useState(false);
 
   const signIn = async (email: string, password: string) => {
+    setIsLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
+      // Basic validation
+      if (!email || !password) {
+        throw new Error('Email and password are required');
+      }
+      
+      // Mock authentication - replace with your actual authentication logic
+      return new Promise<void>((resolve, reject) => {
+        setTimeout(() => {
+          if (password.length < 6) {
+            setIsLoading(false);
+            return reject(new Error('Password must be at least 6 characters'));
+          }
+          
+          setUser({
+            id: 'user-' + Math.random().toString(36).substr(2, 9),
+            email,
+            name: email.split('@')[0],
+          });
+          setIsLoading(false);
+          resolve();
+        }, 1000);
+      });
     } catch (error) {
       console.error('Error signing in:', error);
+      setIsLoading(false);
       throw error;
     }
   };
 
   const signOut = async () => {
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      // Mock sign out
+      return new Promise<void>((resolve) => {
+        setTimeout(() => {
+          setUser(null);
+          resolve();
+        }, 500);
+      });
     } catch (error) {
       console.error('Error signing out:', error);
       throw error;
@@ -92,7 +68,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, isLoading, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, isLoading, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );
