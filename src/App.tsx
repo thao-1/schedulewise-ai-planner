@@ -1,108 +1,108 @@
-import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
-import { MainLayout } from '@/components/layout/MainLayout';
-import { Login } from '@/pages/auth/Login';
-import { Signup } from '@/pages/auth/Signup';
-import { Dashboard } from '@/pages/dashboard/Dashboard';
-import { Settings } from '@/pages/settings/Settings';
-import TestAuthPage from '@/pages/test-auth';
-import { AuthProvider, useAuth } from '@/contexts/AuthContext';
-import { Toaster } from 'sonner';
-import "./App.css";
-import React from 'react';
 
-// Public layout wrapper - shows the main layout for all routes
-const PublicLayout = ({ children }: { children: React.ReactNode }) => (
-  <MainLayout>{children}</MainLayout>
-);
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { ThemeProvider } from "next-themes";
+import { AuthProvider } from "./contexts/AuthContext";
+import MainLayout from "./components/layout/MainLayout";
+import Dashboard from "./pages/Dashboard";
+import Schedule from "./pages/Schedule";
+import Onboarding from "./pages/Onboarding";
+import AddEvent from "./pages/AddEvent";
+import Settings from "./pages/Settings";
+import NotFound from "./pages/NotFound";
+import { useEffect, useState } from "react";
+import { supabase } from "./integrations/supabase/client";
+import { toast } from "sonner";
 
-// Auth pages wrapper - only shows when user is not authenticated
-const AuthPages = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthenticated } = useAuth();
-  return !isAuthenticated ? <>{children}</> : <Navigate to="/dashboard" replace />;
-};
+const queryClient = new QueryClient();
 
-// Protected route component - handles both loading and auth states
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthenticated, loading } = useAuth();
+const App = () => {
+  const [authChecked, setAuthChecked] = useState(false);
   
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-      </div>
-    );
-  }
-  
-  if (!isAuthenticated) {
-    // Store the intended destination before redirecting to login
-    return <Navigate to={`/login?redirect=${encodeURIComponent(window.location.pathname)}`} replace />;
-  }
-  
-  return <>{children}</>;
-};
+  // Check for Google Auth redirects
+  useEffect(() => {
+    // Handle auth redirect and show appropriate toast
+    const handleAuthRedirect = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        // Check URL for Google auth parameters
+        const params = new URLSearchParams(window.location.search);
+        const hash = window.location.hash;
+        const hasGoogleParams = params.has('provider') || (hash && hash.includes('access_token'));
+        
+        console.log('Auth redirect detected:', {
+          hasGoogleParams,
+          session: !!session,
+          hash,
+          params: Object.fromEntries(params.entries())
+        });
+        
+        if (hasGoogleParams && session) {
+          // Successfully logged in with Google
+          toast.success('Successfully connected with Google!');
+          console.log('Google auth successful, session:', session);
+          
+          // Get return path (if any)
+          const returnPath = localStorage.getItem('returnPathAfterGoogleAuth') || '/';
+          
+          // Clean up URL without refreshing the page
+          const url = new URL(window.location.href);
+          url.search = '';
+          url.hash = '';
+          window.history.replaceState({}, document.title, url.toString());
+          
+          // If we're not already on the return path, redirect to it
+          if (window.location.pathname !== returnPath) {
+            console.log(`Redirecting to saved return path: ${returnPath}`);
+            window.location.href = returnPath;
+            return;
+          }
+        } else if (hasGoogleParams && !session) {
+          // Failed to login with Google
+          toast.error('Google authentication failed', {
+            description: 'Please try again or check console for details'
+          });
+          console.error('Google params detected but no session available');
+        }
+        
+        setAuthChecked(true);
+      } catch (error) {
+        console.error('Error handling auth redirect:', error);
+        setAuthChecked(true);
+      }
+    };
+    
+    handleAuthRedirect();
+  }, []);
 
-// Wrapper components for auth pages
-function LoginPage() {
-  return <Login />;
-}
-
-function SignupPage() {
-  return <Signup />;
-}
-
-function App() {
   return (
-    <Router>
-      <AuthProvider>
-        <Toaster position="top-right" richColors />
-        <Routes>
-          {/* Public routes */}
-          <Route path="/login" element={
-            <AuthPages>
-              <LoginPage />
-            </AuthPages>
-          } />
-          
-          <Route path="/signup" element={
-            <AuthPages>
-              <SignupPage />
-            </AuthPages>
-          } />
-          
-          {/* Protected routes */}
-          <Route element={
-            <ProtectedRoute>
-              <PublicLayout>
-                <Outlet />
-              </PublicLayout>
-            </ProtectedRoute>
-          }>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/test-auth" element={<TestAuthPage />} />
-            
-            {/* 404 - Not Found for protected routes */}
-            <Route path="*" element={
-              <div className="flex flex-col items-center justify-center h-[80vh]">
-                <h1 className="text-4xl font-bold text-gray-900 dark:text-white">404</h1>
-                <p className="mt-2 text-lg text-gray-600 dark:text-gray-400">Page not found</p>
-                <button 
-                  onClick={() => window.history.back()}
-                  className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                >
-                  Go Back
-                </button>
-              </div>
-            } />
-          </Route>
-          
-          {/* Fallback route for non-existent public routes */}
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
-      </AuthProvider>
-    </Router>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <TooltipProvider>
+          <AuthProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<MainLayout />}>
+                  <Route index element={<Dashboard />} />
+                  <Route path="schedule" element={<Schedule />} />
+                  <Route path="onboarding" element={<Onboarding />} />
+                  <Route path="add-event" element={<AddEvent />} />
+                  <Route path="settings" element={<Settings />} />
+                </Route>
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </AuthProvider>
+        </TooltipProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
-}
+};
 
 export default App;
