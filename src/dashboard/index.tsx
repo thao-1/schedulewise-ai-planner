@@ -1,207 +1,204 @@
 // src/dashboard/index.tsx
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Bell, Calendar, Clock, Users, CheckCircle, MoreHorizontal } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
+import { Button } from "../components/ui/button";
+import { Clock, Calendar, TrendingUp, Zap, Sun, Moon, Coffee, Utensils, Dumbbell, BookOpen, MoonStar, Sun as SunIcon, Clock4 } from "lucide-react";
 
 export default function Dashboard() {
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground">Welcome back, Thao!</p>
-        </div>
-        <div className="flex items-center space-x-4">
-          <Button variant="outline" size="icon">
-            <Bell className="h-5 w-5" />
-          </Button>
-          <Button>+ New Task</Button>
-        </div>
-      </div>
-
-      {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatsCard
-          title="Total Tasks"
-          value="128"
-          icon={<CheckCircle className="h-6 w-6" />}
-          description="+12% from last month"
-        />
-        <StatsCard
-          title="Team Members"
-          value="24"
-          icon={<Users className="h-6 w-6" />}
-          description="+2 from last month"
-        />
-        <StatsCard
-          title="Upcoming Events"
-          value="5"
-          icon={<Calendar className="h-6 w-6" />}
-          description="2 meetings tomorrow"
-        />
-        <StatsCard
-          title="Hours Tracked"
-          value="1,234"
-          icon={<Clock className="h-6 w-6" />}
-          description="+8% from last week"
-        />
-      </div>
-
-      {/* Main Content Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        {/* Recent Tasks */}
-        <Card className="col-span-4">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Recent Tasks</CardTitle>
-            <Button variant="ghost" size="sm">
-              View All
+    <div className="min-h-screen bg-background p-6">
+      <div className="flex gap-6">
+        {/* Main Content */}
+        <div className="flex-1">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h1 className="text-2xl font-bold">Hello, Thao! 👋</h1>
+              <p className="text-muted-foreground">Here's your schedule for today</p>
+            </div>
+            <Button variant="outline" className="gap-2">
+              <Calendar className="h-4 w-4" />
+              Setup Preferences
             </Button>
-          </CardHeader>
-          <CardContent>
-            <RecentTasks />
-          </CardContent>
-        </Card>
+          </div>
 
-        {/* Upcoming Events */}
-        <Card className="col-span-3">
-          <CardHeader>
-            <CardTitle>Upcoming Events</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <UpcomingEvents />
-          </CardContent>
-        </Card>
+          {/* Stats Grid */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
+            <StatsCard
+              title="Deep Work Hours"
+              value="28.0 hrs"
+              icon={<Clock className="h-6 w-6 text-blue-500" />}
+              trend="+2.4h from last week"
+              trendUp={true}
+            />
+            <StatsCard
+              title="Weekly Events"
+              value="98"
+              icon={<Calendar className="h-6 w-6 text-purple-500" />}
+              trend="+12 from last week"
+              trendUp={true}
+            />
+            <StatsCard
+              title="Productivity Score"
+              value="94%"
+              icon={<TrendingUp className="h-6 w-6 text-green-500" />}
+              trend="+5% from last week"
+              trendUp={true}
+            />
+            <StatsCard
+              title="Work-Life Balance"
+              value="Excellent"
+              icon={<Zap className="h-6 w-6 text-amber-500" />}
+              trend="Stable"
+              trendUp={false}
+            />
+          </div>
+
+          {/* Weekly Schedule */}
+          <Card className="mb-8">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Weekly Schedule Overview</CardTitle>
+                  <CardDescription>Your schedule from Sun, Jul 7 - Sat, Jul 13</CardDescription>
+                </div>
+                <Button variant="outline" size="sm">View Full Schedule</Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="h-48 bg-muted/20 rounded-lg p-4">
+                {/* Placeholder for calendar grid */}
+                <div className="grid grid-cols-7 gap-1 h-full">
+                  {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
+                    <div key={i} className="flex flex-col items-center">
+                      <div className="text-sm font-medium mb-1">{day}</div>
+                      <div className="flex-1 w-full bg-muted/30 rounded"></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Work-Life Balance */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Work-Life Balance</CardTitle>
+              <CardDescription>Your balance between work and personal life</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-48 bg-muted/20 rounded-lg flex items-center justify-center">
+                <p className="text-muted-foreground">Work-life balance visualization</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Sidebar */}
+        <div className="w-80 flex-shrink-0">
+          <Card className="sticky top-6">
+            <CardHeader>
+              <CardTitle>Upcoming Events</CardTitle>
+              <CardDescription>Your schedule for the next 24 hours</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <EventItem 
+                time="9:00 PM - 9:30 PM"
+                title="Prepare for Sleep"
+                type="relaxation"
+                icon={<MoonStar className="h-4 w-4 text-purple-500" />}
+              />
+              <EventItem 
+                time="9:30 PM - 6:00 AM"
+                title="Sleep"
+                type="sleep"
+                icon={<Moon className="h-4 w-4 text-blue-500" />}
+              />
+              <EventItem 
+                time="6:00 AM - 6:30 AM"
+                title="Wake Up"
+                type="wake"
+                icon={<SunIcon className="h-4 w-4 text-amber-500" />}
+              />
+              <EventItem 
+                time="6:30 AM - 7:00 AM"
+                title="Breakfast"
+                type="meals"
+                icon={<Utensils className="h-4 w-4 text-emerald-500" />}
+              />
+            </CardContent>
+            <div className="p-4 pt-0">
+              <Button variant="outline" className="w-full gap-2">
+                <Calendar className="h-4 w-4" />
+                Add New Event
+              </Button>
+            </div>
+          </Card>
+        </div>
       </div>
     </div>
   );
 }
 
 // Stats Card Component
-function StatsCard({ title, value, icon, description }: { 
+function StatsCard({ title, value, icon, trend, trendUp }: { 
   title: string; 
   value: string; 
   icon: React.ReactNode;
-  description: string;
+  trend: string;
+  trendUp: boolean;
 }) {
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+      <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">
           {title}
         </CardTitle>
-        <div className="h-6 w-6 text-muted-foreground">{icon}</div>
+        <div className="bg-muted p-2 rounded-lg">
+          {icon}
+        </div>
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-bold">{value}</div>
-        <p className="text-xs text-muted-foreground mt-1">{description}</p>
+        <p className={`text-xs ${trendUp ? 'text-green-500' : 'text-muted-foreground'}`}>
+          {trend}
+        </p>
       </CardContent>
     </Card>
   );
 }
 
-// Recent Tasks Component
-function RecentTasks() {
-  const tasks = [
-    {
-      id: 1,
-      title: "Complete project proposal",
-      priority: "high",
-      dueDate: "2025-07-15",
-      assignedTo: "John D.",
-    },
-    {
-      id: 2,
-      title: "Review code changes",
-      priority: "medium",
-      dueDate: "2025-07-14",
-      assignedTo: "You",
-    },
-    {
-      id: 3,
-      title: "Team sync meeting",
-      priority: "low",
-      dueDate: "2025-07-13",
-      assignedTo: "Sarah M.",
-    },
-  ];
+// Event Item Component
+function EventItem({ time, title, type, icon }: { 
+  time: string; 
+  title: string; 
+  type: string;
+  icon: React.ReactNode;
+}) {
+  const typeStyles = {
+    relaxation: 'bg-purple-100 text-purple-800',
+    sleep: 'bg-blue-100 text-blue-800',
+    wake: 'bg-amber-100 text-amber-800',
+    meals: 'bg-emerald-100 text-emerald-800',
+    work: 'bg-indigo-100 text-indigo-800',
+    exercise: 'bg-rose-100 text-rose-800',
+    learning: 'bg-sky-100 text-sky-800',
+  };
 
   return (
-    <div className="space-y-4">
-      {tasks.map((task) => (
-        <div
-          key={task.id}
-          className="flex items-center justify-between rounded-lg border p-4 hover:bg-accent/50 transition-colors"
-        >
-          <div className="space-y-1">
-            <p className="font-medium leading-none">{task.title}</p>
-            <p className="text-sm text-muted-foreground">
-              Due {task.dueDate} • {task.assignedTo}
-            </p>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span
-              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                task.priority === "high"
-                  ? "bg-red-100 text-red-800"
-                  : task.priority === "medium"
-                  ? "bg-yellow-100 text-yellow-800"
-                  : "bg-green-100 text-green-800"
-              }`}
-            >
-              {task.priority}
-            </span>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </div>
+    <div className="flex items-start gap-3">
+      <div className="mt-0.5">
+        <div className="h-2 w-2 rounded-full bg-muted-foreground/20"></div>
+      </div>
+      <div className="flex-1">
+        <p className="text-sm font-medium">{title}</p>
+        <p className="text-xs text-muted-foreground">{time}</p>
+      </div>
+      <div className={`text-xs px-2 py-1 rounded-full ${typeStyles[type as keyof typeof typeStyles]}`}>
+        <div className="flex items-center gap-1">
+          {icon}
+          <span className="capitalize">{type}</span>
         </div>
-      ))}
-    </div>
-  );
-}
-
-// Upcoming Events Component
-function UpcomingEvents() {
-  const events = [
-    {
-      id: 1,
-      title: "Team Standup",
-      time: "10:00 AM - 10:30 AM",
-      date: "Tomorrow",
-    },
-    {
-      id: 2,
-      title: "Client Call",
-      time: "2:00 PM - 3:00 PM",
-      date: "Jul 14",
-    },
-    {
-      id: 3,
-      title: "Sprint Planning",
-      time: "11:00 AM - 12:30 PM",
-      date: "Jul 15",
-    },
-  ];
-
-  return (
-    <div className="space-y-4">
-      {events.map((event) => (
-        <div
-          key={event.id}
-          className="flex items-start space-x-4 rounded-lg p-3 hover:bg-accent/50 transition-colors"
-        >
-          <div className="flex-1 space-y-1">
-            <p className="font-medium leading-none">{event.title}</p>
-            <p className="text-sm text-muted-foreground">{event.time}</p>
-          </div>
-          <div className="text-sm text-muted-foreground">{event.date}</div>
-        </div>
-      ))}
-      <Button variant="outline" className="w-full mt-4">
-        <Calendar className="h-4 w-4 mr-2" />
-        Add Event
-      </Button>
+      </div>
     </div>
   );
 }

@@ -1,11 +1,9 @@
 import React from 'react'
+import "./App.css";
+import Dashboard from "./dashboard";
 
 function App() {
-  return (
-    <div>
-      Hello World
-    </div>
-  )
+  return <Dashboard />;
 }
 
-export default App
+export default App;
