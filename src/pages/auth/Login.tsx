@@ -1,4 +1,4 @@
-import { useState } from 'react';
+Let's see what I can do in 10 minutes I haveimport { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
