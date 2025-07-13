@@ -44,38 +44,74 @@ const Onboarding = () => {
   const handleComplete = async () => {
     setGenerationError(null);
     setGenerationAttempted(true);
-
+    
+    console.log('Starting schedule generation with preferences:', preferences);
+    
+    // Prepare preferences with defaults
+    const schedulePreferences = {
+      workHours: preferences.workHours || '9-5',
+      deepWorkHours: preferences.deepWorkHours || '2',
+      personalActivities: Array.isArray(preferences.personalActivities) 
+        ? preferences.personalActivities 
+        : [],
+      workoutTime: preferences.workoutTime || '18:00',
+      meetingPreference: preferences.meetingPreference || 'afternoon',
+      meetingsPerDay: typeof preferences.meetingsPerDay === 'number' 
+        ? preferences.meetingsPerDay 
+        : 2,
+      autoReschedule: preferences.autoReschedule !== undefined 
+        ? preferences.autoReschedule 
+        : true,
+      customPreferences: preferences.customPreferences || ''
+    };
+    
+    console.log('Sending preferences to generateSchedule:', schedulePreferences);
+    
     try {
-      console.log('Generating schedule with preferences:', preferences);
+      // Show loading state
+      const loadingToast = toast.loading('Generating your personalized schedule...');
       
       // Generate schedule with the preferences
-      await generateSchedule({
-        preferences: {
-          workHours: preferences.workHours || '9-5',
-          deepWorkHours: preferences.deepWorkHours || '2',
-          personalActivities: preferences.personalActivities || [],
-          workoutTime: preferences.workoutTime || '18:00',
-          meetingPreference: preferences.meetingPreference || 'afternoon',
-          meetingsPerDay: preferences.meetingsPerDay || 2,
-          autoReschedule: preferences.autoReschedule !== undefined ? preferences.autoReschedule : true,
-          customPreferences: preferences.customPreferences || ''
-        },
+      const schedule = await generateSchedule({
+        preferences: schedulePreferences,
         onSuccess: (schedule: ScheduleEvent[]) => {
-          console.log('Generated schedule:', schedule);
+          console.log('Schedule generation successful, schedule:', schedule);
           toast.success('Schedule generated successfully!');
-          navigate('/dashboard', { state: { schedule } });
         },
         onError: (error: Error) => {
-          console.error('Error generating schedule:', error);
-          setGenerationError(error.message || 'Failed to generate schedule');
-          toast.error('Failed to generate schedule. Please try again.');
+          console.error('Error in generateSchedule onError:', error);
+          setGenerationError(error.message);
+          toast.error(`Failed to generate schedule: ${error.message}`);
         }
       });
+      
+      // If we get here, generation was successful
+      toast.dismiss(loadingToast);
+      
+      if (schedule && schedule.length > 0) {
+        console.log(`Navigating to schedule page with ${schedule.length} events`);
+        navigate('/schedule', { 
+          state: { 
+            schedule,
+            message: 'Your schedule has been generated successfully!' 
+          },
+          replace: true
+        });
+      } else {
+        throw new Error('Generated schedule is empty');
+      }
+      
     } catch (error: unknown) {
       console.error('Error in handleComplete:', error);
-      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : 'An unexpected error occurred during schedule generation';
+      
       setGenerationError(errorMessage);
-      toast.error('Failed to complete onboarding');
+      toast.error(errorMessage);
+      
+      // Scroll to top to show the error message
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 

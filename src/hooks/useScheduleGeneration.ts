@@ -1,6 +1,6 @@
-
 import { useState, useCallback } from 'react';
 import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from '@/contexts/AuthContext';
 
 export interface ScheduleEvent {
   day: number;
@@ -38,60 +38,117 @@ const useScheduleGeneration = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
+  // Authentication is now optional for schedule generation
+  const { user } = useAuth();
+  
   const generateSchedule = useCallback(
     async ({ preferences, onSuccess, onError }: ScheduleGenerationParams) => {
       setIsLoading(true);
+      console.log('Starting schedule generation with preferences:', preferences);
+      
       try {
         const apiUrl = import.meta.env['VITE_API_URL'] || 'http://localhost:3001';
-        const response = await fetch(`${apiUrl}/api/schedule/generate`, {
+        console.log(`Sending request to: ${apiUrl}/api/schedule/generate`);
+        
+        // Add a timestamp to prevent caching
+        const timestamp = new Date().getTime();
+        const url = new URL(`${apiUrl}/api/schedule/generate`);
+        url.searchParams.append('_t', timestamp.toString());
+        
+        // Get the CSRF token from cookies if using CSRF protection
+        const csrfToken = document.cookie
+          .split('; ')
+          .find(row => row.startsWith('XSRF-TOKEN='))
+          ?.split('=')[1];
+        
+        const response = await fetch(url.toString(), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            ...(csrfToken && { 'X-XSRF-TOKEN': csrfToken }),
           },
-          credentials: 'include', // This is needed to include cookies with the request
-          body: JSON.stringify({ preferences }),
+          credentials: 'include', // This is crucial for sending cookies with cross-origin requests
+          body: JSON.stringify({ 
+            preferences,
+            userId: user?.id || 'anonymous', // Make user ID optional
+          }),
         });
+        
+        console.log('Request headers:', {
+          credentials: 'include',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          ...(csrfToken && { 'X-XSRF-TOKEN': '***' }), // Don't log the actual token
+        }, 'User ID:', user?.id || 'anonymous');
 
+        console.log('Received response status:', response.status);
+        
+        // Handle non-OK responses
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to generate schedule');
+          let errorMessage = `Server responded with status ${response.status}`;
+          try {
+            const errorData = await response.json();
+            console.error('Error response from server:', errorData);
+            errorMessage = errorData.error || errorMessage;
+          } catch (e) {
+            console.error('Failed to parse error response:', e);
+          }
+          throw new Error(errorMessage);
         }
 
-        const schedule = await response.json();
-        console.log('Schedule Result:', schedule);
+        // Parse the successful response
+        let schedule;
+        try {
+          schedule = await response.json();
+          console.log('Schedule response:', schedule);
+        } catch (e) {
+          console.error('Failed to parse schedule response:', e);
+          throw new Error('Invalid response format from server');
+        }
 
-        // The API returns the schedule directly as an array
+        // Validate the schedule format
         if (!Array.isArray(schedule)) {
-          throw new Error('Invalid schedule format received from API');
+          console.error('Expected array but got:', typeof schedule, schedule);
+          throw new Error('Invalid schedule format: Expected an array of events');
         }
 
-        // Format the schedule to ensure it matches our expected format
+        // Format the schedule with defaults
         const formattedSchedule = schedule.map((event: any) => ({
           ...event,
-          day: event.day ?? 0,
-          hour: event.hour ?? 9,
-          duration: event.duration ?? 1,
-          title: event.title || 'Untitled Event',
-          type: event.type || 'work',
-          id: event.id || crypto.randomUUID(),
+          day: typeof event.day === 'number' ? event.day : 0,
+          hour: typeof event.hour === 'number' ? event.hour : 9,
+          duration: typeof event.duration === 'number' ? event.duration : 1,
+          title: event.title?.toString() || 'Untitled Event',
+          type: ['work', 'break', 'meeting', 'personal', 'other'].includes(event.type) 
+            ? event.type 
+            : 'other',
+          id: event.id?.toString() || crypto.randomUUID(),
+          description: event.description?.toString() || '',
         }));
         
-        console.log('Formatted Schedule:', formattedSchedule);
+        console.log('Successfully formatted schedule with', formattedSchedule.length, 'events');
         
         toast({
-          title: "Schedule generated successfully!",
-          description: "Your personalized schedule has been created.",
+          title: "Schedule generated!",
+          description: `Successfully created a schedule with ${formattedSchedule.length} events.`,
         });
         
         onSuccess?.(formattedSchedule);
+        return formattedSchedule;
+        
       } catch (error: any) {
-        console.error('Error generating schedule:', error);
+        console.error('Error in generateSchedule:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Failed to generate schedule';
+        
         toast({
-          title: "Error generating schedule",
-          description: error.message || "Failed to generate schedule. Please try again.",
+          title: "Schedule generation failed",
+          description: errorMessage,
           variant: "destructive",
-        })
-        onError?.(error);
+        });
+        
+        onError?.(error instanceof Error ? error : new Error(errorMessage));
+        throw error; // Re-throw to allow component to handle if needed
       } finally {
         setIsLoading(false);
       }

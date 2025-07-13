@@ -1,33 +1,88 @@
 
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { PlusCircle } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { PlusCircle, Calendar as CalendarIcon, Clock, ArrowLeft, ArrowRight } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
+import { format, addDays, startOfWeek, isSameDay, parseISO, isWithinInterval } from 'date-fns';
+
+// Color mapping for different event types
+const EVENT_COLORS: Record<string, string> = {
+  work: 'bg-blue-100 border-blue-300 text-blue-800',
+  meeting: 'bg-purple-100 border-purple-300 text-purple-800',
+  workout: 'bg-green-100 border-green-300 text-green-800',
+  meal: 'bg-yellow-100 border-yellow-300 text-yellow-800',
+  personal: 'bg-pink-100 border-pink-300 text-pink-800',
+  sleep: 'bg-indigo-100 border-indigo-300 text-indigo-800',
+  break: 'bg-gray-100 border-gray-300 text-gray-800',
+  other: 'bg-gray-100 border-gray-300 text-gray-800',
+};
 
 const Schedule = () => {
-  const [scheduleData, setScheduleData] = useState<any[]>([]);
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
+  
+  const [scheduleData, setScheduleData] = useState<ScheduleEvent[]>([]);
+  const [currentWeekStart, setCurrentWeekStart] = useState<Date>(startOfWeek(new Date()));
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [isLoading, setIsLoading] = useState(true);
 
+  // Get the week days for the current week view
+  const weekDays = Array.from({ length: 7 }).map((_, index) => 
+    addDays(currentWeekStart, index)
+  );
+
+  // Handle schedule data from navigation state or localStorage
   useEffect(() => {
-    const fetchScheduleFromStorage = () => {
+    const loadSchedule = () => {
       try {
-        const savedSchedule = localStorage.getItem('generatedSchedule');
-        if (savedSchedule) {
-          const parsedSchedule = JSON.parse(savedSchedule);
-          setScheduleData(parsedSchedule);
+        console.log('Loading schedule. Location state:', location.state);
+        
+        // First check for schedule in navigation state
+        if (location.state?.schedule) {
+          const schedule = location.state.schedule;
+          console.log('Schedule from location state:', schedule);
+          
+          if (!Array.isArray(schedule)) {
+            console.error('Expected schedule to be an array, got:', typeof schedule);
+            throw new Error('Invalid schedule format: expected an array of events');
+          }
+          
+          setScheduleData(schedule);
+          // Save to localStorage for persistence
+          localStorage.setItem('generatedSchedule', JSON.stringify(schedule));
+          
+          // Show success message if it exists
+          if (location.state.message) {
+            toast({
+              title: 'Success',
+              description: location.state.message,
+            });
+          }
+        } else {
+          // Fallback to localStorage
+          const savedSchedule = localStorage.getItem('generatedSchedule');
+          if (savedSchedule) {
+            setScheduleData(JSON.parse(savedSchedule));
+          }
         }
       } catch (error) {
-        console.error('Error loading schedule from storage:', error);
+        console.error('Error loading schedule:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load schedule',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoading(false);
       }
     };
 
-    fetchScheduleFromStorage();
-  }, []);
+    loadSchedule();
+  }, [location.state, toast]);
 
   const handleDateSelect = (date: Date | undefined) => {
     setSelectedDate(date);
@@ -58,107 +113,185 @@ const Schedule = () => {
     }
   };
 
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  // Navigate between weeks
+  const goToPreviousWeek = () => {
+    setCurrentWeekStart(prev => addDays(prev, -7));
   };
 
+  const goToNextWeek = () => {
+    setCurrentWeekStart(prev => addDays(prev, 7));
+  };
+
+  const goToToday = () => {
+    setCurrentWeekStart(startOfWeek(new Date()));
+    setSelectedDate(new Date());
+  };
+
+  // Format time to HH:MM
+  const formatTime = (timeString: string) => {
+    return format(new Date(`2000-01-01T${timeString}`), 'h:mm a');
+  };
+
+  // Get events for a specific day
+  const getEventsForDay = (day: Date) => {
+    console.log('Getting events for day:', day);
+    console.log('Current scheduleData:', scheduleData);
+    
+    const events = scheduleData.filter(event => {
+      if (!event.startTime) {
+        console.warn('Event missing startTime:', event);
+        return false;
+      }
+      
+      try {
+        const eventDate = new Date(event.startTime);
+        if (isNaN(eventDate.getTime())) {
+          console.warn('Invalid date for event:', event);
+          return false;
+        }
+        
+        const isSame = isSameDay(eventDate, day);
+        if (isSame) {
+          console.log('Matched event:', event);
+        }
+        return isSame;
+      } catch (error) {
+        console.error('Error processing event:', event, error);
+        return false;
+      }
+    });
+    
+    console.log(`Found ${events.length} events for ${day}`);
+    return events.sort((a, b) => a.startTime.localeCompare(b.startTime));
+  };
+
+  // Get color class for an event type
   const getEventColor = (eventType: string) => {
-    const colors: Record<string, string> = {
-      work: 'bg-blue-100 text-blue-800',
-      meeting: 'bg-purple-100 text-purple-800',
-      break: 'bg-green-100 text-green-800',
-      default: 'bg-gray-100 text-gray-800'
-    };
-    return colors[eventType] || colors.default;
+    return EVENT_COLORS[eventType.toLowerCase()] || EVENT_COLORS.other;
   };
 
-  // Date selection is handled by the Calendar component
-  // No need for a separate handler since we're using the selectedDate state directly
-
-  const selectedDayEvents = selectedDate ? [...scheduleData].filter(event => {
-    const eventDate = new Date(event.startTime);
-    return eventDate.toDateString() === selectedDate.toDateString();
-  }) : [];
-
-  return (
-    <div className="container mx-auto py-6">
-      <div className="flex flex-col md:flex-row gap-8">
-        <div className="md:w-1/3">
-          <Card>
-            <CardHeader>
-              <CardTitle>Calendar</CardTitle>
-              <CardDescription>Select a day to view events</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={handleDateSelect}
-                className="rounded-md border"
-              />
-            </CardContent>
-            <CardFooter className="flex justify-center">
-              <Button variant="outline" className="w-full" onClick={handleSyncToGoogle}>
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Sync to Google Calendar
-              </Button>
-            </CardFooter>
-          </Card>
-        </div>
-
-        <div className="md:w-2/3">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-bold">
-              {selectedDate ? selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) : 'Schedule'}
-            </h2>
-            <Button onClick={() => navigate('/add-event')}>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Add Event
-            </Button>
-          </div>
-
-          {selectedDayEvents.length > 0 ? (
-            <div className="space-y-4">
-              {[...selectedDayEvents]
-                .sort((a: any, b: any) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
-                .map((event: any, index: number) => (
-                  <Card key={index} className={`${getEventColor(event.type)} border`}>
-                    <CardContent className="p-4">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h3 className="font-medium text-lg">{event.title}</h3>
-                          <p className="text-sm text-gray-600">
-                            {formatTime(event.startTime)}
-                            {event.duration && (
-                              <span> - {formatTime(new Date(new Date(event.startTime).getTime() + event.duration * 60 * 1000).toString())}</span>
-                            )}
-                          </p>
-                          {event.description && (
-                            <p className="mt-2 text-sm">{event.description}</p>
-                          )}
-                        </div>
-                        <span className="px-2 py-1 text-xs rounded-full bg-white bg-opacity-50">
-                          {event.type}
-                        </span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-            </div>
-          ) : (
-            <Card>
-              <CardContent className="p-6 text-center">
-                <p className="mb-4">No events scheduled for this day.</p>
-                <Button variant="outline" onClick={() => navigate('/add-event')}>
-                  <PlusCircle className="mr-2 h-4 w-4" />
-                  Add Event
-                </Button>
-              </CardContent>
-            </Card>
-          )}
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p>Loading your schedule...</p>
         </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto py-6 px-4">
+      {/* Week Navigation */}
+      <div className="flex justify-between items-center mb-6">
+        <Button variant="outline" onClick={goToToday}>
+          Today
+        </Button>
+        <div className="flex items-center space-x-4">
+          <Button variant="outline" size="icon" onClick={goToPreviousWeek}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <h2 className="text-xl font-semibold">
+            {format(currentWeekStart, 'MMM d')} - {format(addDays(currentWeekStart, 6), 'MMM d, yyyy')}
+          </h2>
+          <Button variant="outline" size="icon" onClick={goToNextWeek}>
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </div>
+        <Button onClick={() => navigate('/add-event')}>
+          <PlusCircle className="mr-2 h-4 w-4" />
+          Add Event
+        </Button>
+      </div>
+
+      {/* Weekly Schedule View */}
+      <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
+        {weekDays.map((day, index) => {
+          const dayEvents = getEventsForDay(day);
+          const isToday = isSameDay(day, new Date());
+          
+          return (
+            <div key={index} className="border rounded-lg overflow-hidden">
+              <div className={`p-3 text-center ${isToday ? 'bg-blue-50' : 'bg-gray-50'} border-b`}>
+                <div className="text-sm font-medium text-gray-500">
+                  {format(day, 'EEE')}
+                </div>
+                <div className={`mt-1 text-lg font-semibold ${isToday ? 'text-blue-600' : 'text-gray-900'}`}>
+                  {format(day, 'd')}
+                </div>
+              </div>
+              
+              <div className="p-2 space-y-2 min-h-[200px] max-h-[60vh] overflow-y-auto">
+                {dayEvents.length > 0 ? (
+                  dayEvents.map((event, eventIndex) => (
+                    <div 
+                      key={eventIndex}
+                      className={`p-2 rounded border-l-4 ${getEventColor(event.type)} text-sm cursor-pointer hover:shadow-md transition-shadow`}
+                      onClick={() => setSelectedDate(day)}
+                    >
+                      <div className="font-medium truncate">{event.title}</div>
+                      <div className="flex items-center text-xs text-gray-600 mt-1">
+                        <Clock className="h-3 w-3 mr-1" />
+                        {formatTime(event.startTime)}
+                        {event.endTime && ` - ${formatTime(event.endTime)}`}
+                      </div>
+                      {event.description && (
+                        <p className="text-xs mt-1 text-gray-600 truncate">{event.description}</p>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-gray-500 text-center py-4">No events</p>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Day View for Selected Date */}
+      {selectedDate && (
+        <div className="mt-8">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold">
+              {format(selectedDate, 'EEEE, MMMM d, yyyy')}
+            </h2>
+          </div>
+          
+          <div className="space-y-3">
+            {getEventsForDay(selectedDate).length > 0 ? (
+              getEventsForDay(selectedDate).map((event, index) => (
+                <div 
+                  key={index}
+                  className={`p-4 rounded-lg border ${getEventColor(event.type)}`}
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-medium text-lg">{event.title}</h3>
+                      <div className="flex items-center text-sm text-gray-700 mt-1">
+                        <Clock className="h-4 w-4 mr-1" />
+                        {formatTime(event.startTime)}
+                        {event.endTime && ` - ${formatTime(event.endTime)}`}
+                      </div>
+                      {event.description && (
+                        <p className="mt-2 text-sm text-gray-700">{event.description}</p>
+                      )}
+                    </div>
+                    <span className="px-2 py-1 text-xs rounded-full bg-white bg-opacity-70">
+                      {event.type}
+                    </span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                No events scheduled for this day.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,3 +1,5 @@
+import { EventEmitter } from 'events';
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import session from 'express-session';
@@ -6,6 +8,16 @@ import { Strategy as GoogleStrategy, type Profile } from 'passport-google-oauth2
 import { config } from './config.js';
 import scheduleRoutes from './routes/schedule.routes.js';
 import { authRoutes } from './routes/auth.routes.js';
+
+// Increase the default max listeners to prevent memory leak warnings
+EventEmitter.defaultMaxListeners = 20;
+
+// Debug: Log environment variables (don't log the actual API key)
+console.log('Environment Variables:');
+console.log('- NODE_ENV:', process.env.NODE_ENV);
+console.log('- VITE_API_URL:', process.env.VITE_API_URL);
+console.log('- OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? '***' : 'Not set');
+console.log('- Config OpenAI Key:', config.openai.apiKey ? '***' : 'Not set');
 
 declare global {
   namespace Express {
@@ -22,8 +34,32 @@ app.use(express.json());
 // Handle preflight requests
 app.options('*', cors(config.cors));
 
-// Apply CORS middleware
-app.use(cors(config.cors));
+// Trust the first proxy (important if behind a reverse proxy like nginx)
+app.set('trust proxy', 1);
+
+// Session configuration must come before CORS
+app.use(session({
+  secret: config.session.secret,
+  resave: false,
+  saveUninitialized: false,
+  name: 'schedulewise.sid', // Custom session cookie name
+  cookie: {
+    maxAge: config.session.cookieMaxAge,
+    secure: config.nodeEnv === 'production',
+    httpOnly: true,
+    sameSite: config.nodeEnv === 'production' ? 'none' : 'lax',
+    domain: config.nodeEnv === 'production' ? '.yourdomain.com' : undefined,
+  },
+  store: undefined, // Use default in-memory store for development
+}));
+
+// Apply CORS middleware with credentials support
+app.use(cors({
+  ...config.cors,
+  credentials: true, // Enable credentials for CORS
+  allowedHeaders: [...(config.cors.allowedHeaders || []), 'X-Requested-With', 'X-HTTP-Method-Override', 'Content-Type', 'Accept', 'Authorization'],
+  exposedHeaders: [...(config.cors.exposedHeaders || []), 'Set-Cookie'],
+}));
 
 // Set CORS headers manually for all responses
 app.use((req, res, next) => {
@@ -31,24 +67,16 @@ app.use((req, res, next) => {
   if (origin) {
     res.header('Access-Control-Allow-Origin', origin);
     res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+      return res.status(200).end();
+    }
   }
   next();
 });
-
-// Session configuration
-app.use(session({
-  secret: config.session.secret,
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    maxAge: config.session.cookieMaxAge,
-    secure: config.nodeEnv === 'production',
-    httpOnly: true,
-    sameSite: 'lax' as const,
-  },
-}));
 
 // Initialize Passport and session
 app.use(passport.initialize());
@@ -124,6 +152,12 @@ const server = app.listen(PORT, () => {
   console.log(`CORS enabled for: ${config.cors.origin}`);
   console.log(`Environment: ${config.nodeEnv}`);
   console.log(`OpenAI Configured: ${!!config.openai.apiKey}`);
+  
+  // Log all event listeners for debugging
+  if (config.nodeEnv === 'development') {
+    const listeners = process.listeners('uncaughtException');
+    console.log(`Active uncaughtException listeners: ${listeners.length}`);
+  }
 });
 
 // Handle unhandled promise rejections

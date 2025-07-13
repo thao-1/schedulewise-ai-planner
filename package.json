@@ -9,7 +9,10 @@
   "scripts": {
     "dev": "concurrently \"npm:dev:frontend\" \"npm:dev:server\"",
     "dev:frontend": "vite",
-    "dev:server": "NODE_OPTIONS='--loader ts-node/esm' nodemon --watch 'src/server' -e ts,tsx --exec 'node' src/server/index.ts",
+    "dev:server": "cross-env NODE_OPTIONS='--import=tsx/esm' nodemon --watch 'src/server' -e ts,tsx --exec 'node --no-warnings=ExperimentalWarning -r dotenv/config' src/server/index.ts",
+    "db:seed": "NODE_OPTIONS='--import=tsx/esm' tsx scripts/seed-db.ts",
+    "db:reset": "NODE_OPTIONS='--import=tsx/esm' tsx scripts/seed-db.ts --reset",
+    "db:drop": "NODE_OPTIONS='--import=tsx/esm' tsx scripts/drop-db.ts",
     "build": "vite build",
     "build:server": "tsc -p tsconfig.server.json",
     "build:all": "npm run build && npm run build:server",
@@ -19,7 +22,8 @@
     "lint:fix": "eslint . --ext .ts,.tsx,.js,.jsx --fix",
     "preview": "vite preview",
     "type-check": "tsc --noEmit",
-    "type-check:watch": "npm run type-check -- --watch"
+    "type-check:watch": "npm run type-check -- --watch",
+    "postinstall": "tsc --project tsconfig.server.json --outDir dist/server"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.4",
@@ -60,6 +64,7 @@
     "express": "^4.18.2",
     "express-session": "^1.17.3",
     "lucide-react": "^0.294.0",
+    "mongoose": "^8.16.3",
     "next-themes": "^0.2.1",
     "openai": "^4.28.4",
     "passport": "^0.7.0",
@@ -93,6 +98,7 @@
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.18",
     "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-import": "^2.29.1",
@@ -110,6 +116,7 @@
     "prettier-plugin-tailwindcss": "^0.5.14",
     "tailwindcss": "^3.4.1",
     "ts-node": "^10.9.2",
+    "tsx": "^4.20.3",
     "typescript": "^5.8.3",
     "vite": "^5.1.4",
     "vite-tsconfig-paths": "^4.3.2"

@@ -13,10 +13,10 @@ const ensureAuthenticated = (req: AuthenticatedRequest, res: Response, next: Nex
   res.status(401).json({ error: 'Not authenticated' });
 };
 
-// Generate a new schedule (protected route)
-router.post('/generate', ensureAuthenticated, generateScheduleHandler);
+// Generate a new schedule (public route)
+router.post('/generate', generateScheduleHandler);
 
-// Get user's schedules (example of a protected route)
+// Get user's schedules (protected route - requires authentication)
 router.get('/', ensureAuthenticated, (req: AuthenticatedRequest, res: Response) => {
   // In a real app, you would fetch schedules for the authenticated user
   res.json({ 

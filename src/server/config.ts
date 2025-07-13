@@ -15,7 +15,22 @@ const config = {
   
   // OpenAI Configuration
   openai: {
-    apiKey: process.env.VITE_OPENAI_API_KEY || '',
+    // Get API key from environment variables
+    // Always use OPENAI_API_KEY for server-side configuration
+    apiKey: (() => {
+      const key = process.env.OPENAI_API_KEY;
+      if (!key) {
+        console.error('❌ OPENAI_API_KEY is not set in your .env file');
+        console.error('Please add the following to your .env file:');
+        console.error('OPENAI_API_KEY=your_actual_openai_api_key_here');
+      } else if (key === 'your_actual_openai_api_key_here') {
+        console.error('❌ Please replace the placeholder with your actual OpenAI API key in the .env file');
+      }
+      return key || '';
+    })(),
+    model: process.env.OPENAI_MODEL || 'gpt-4-turbo-preview',
+    temperature: parseFloat(process.env.OPENAI_TEMPERATURE || '0.7'),
+    maxTokens: parseInt(process.env.OPENAI_MAX_TOKENS || '2000', 10)
   },
   
   // Google OAuth Configuration
