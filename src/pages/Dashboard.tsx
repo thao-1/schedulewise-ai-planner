@@ -16,60 +16,67 @@ import {
   Award, 
   BarChart3 
 } from 'lucide-react';
-import { getEventColor } from '@/utils/eventColors';
+import { getEventColorVars } from '@/utils/eventColors';
 
 const WeeklyScheduleOverview = () => {
-  const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
   
-  // Different color blocks to represent different types of activities/time slots
-  const colorBlocks = [
-    'bg-purple-200',
-    'bg-green-200', 
-    'bg-blue-200',
-    'bg-yellow-200',
-    'bg-indigo-200'
-  ];
+  // Event types for the dashboard
+  const eventTypes = [
+    'meeting',
+    'work',
+    'learning',
+    'workout',
+    'relaxation'
+  ] as const;
 
   return (
-    <div className="h-full flex flex-col">
-      <CardHeader>
-        <CardTitle>Weekly Schedule</CardTitle>
+    <div className="h-full flex flex-col bg-background">
+      <CardHeader className="bg-background">
+        <CardTitle className="text-foreground">Weekly Schedule</CardTitle>
         <CardDescription>Your schedule for this week</CardDescription>
       </CardHeader>
-      <CardContent className="flex-1">
+      <CardContent className="flex-1 bg-background">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">
+          <h1 className="text-2xl font-bold text-foreground mb-2">
             Weekly Schedule Overview
           </h1>
-          <p className="text-gray-600 dark:text-gray-300">
+          <p className="text-muted-foreground">
             Your optimized schedule for this week
           </p>
         </div>
 
-        <div className="bg-orange-50 dark:bg-gray-700 rounded-lg p-4 mb-6">
-          <div className="grid grid-cols-7 gap-1">
-            {daysOfWeek.map((day) => (
-              <div key={day} className="text-center font-medium text-gray-700 dark:text-gray-300 pb-2">
+        <div className="bg-accent/10 rounded-lg p-4 mb-6 border border-border">
+          <div className="flex space-x-1">
+            {daysOfWeek.map((day, index) => (
+              <div key={index} className="flex-1 text-center text-sm font-medium text-foreground">
                 {day}
               </div>
             ))}
-            
-            {daysOfWeek.map((day) => (
-              <div key={`${day}-blocks`} className="space-y-1">
-                {colorBlocks.map((colorClass, blockIndex) => (
-                  <div
-                    key={`${day}-${blockIndex}`}
-                    className={`h-8 rounded ${colorClass} opacity-70`}
-                  />
-                ))}
-              </div>
-            ))}
+          </div>
+          
+          <div className="mt-2 flex space-x-1">
+            {daysOfWeek.map((_, dayIndex) => {
+              // Cycle through event types for each day
+              const eventType = eventTypes[dayIndex % eventTypes.length];
+              const colors = getEventColorVars(eventType);
+              return (
+                <div 
+                  key={dayIndex} 
+                  className="h-2 rounded-full flex-1 border"
+                  style={{
+                    backgroundColor: colors.bg,
+                    borderColor: colors.border,
+                  }}
+                />
+              );
+            })}
           </div>
         </div>
       </CardContent>
-      <CardFooter className="mt-auto">
+      <CardFooter className="mt-auto bg-background border-t">
         <Button variant="outline" className="w-full" asChild>
-          <Link to="/schedule" className="flex items-center justify-center gap-2">
+          <Link to="/schedule" className="flex items-center justify-center gap-2 text-foreground hover:text-primary">
             <Calendar size={16} />
             View Full Schedule
           </Link>
@@ -82,10 +89,10 @@ const WeeklyScheduleOverview = () => {
 const Dashboard: React.FC = () => {
   const [scheduleData, setScheduleData] = useState<any[]>([]);
   const [stats, setStats] = useState([
-    { name: 'Deep Work Hours', value: '0 hrs', icon: Clock, color: 'bg-blue-100' },
-    { name: 'Weekly Events', value: '0', icon: Calendar, color: 'bg-amber-100' },
-    { name: 'Productivity Score', value: '0%', icon: BarChart3, color: 'bg-green-100' },
-    { name: 'Work-Life Balance', value: 'N/A', icon: Award, color: 'bg-purple-100' },
+    { name: 'Deep Work Hours', value: '0 hrs', icon: Clock, type: 'deep-work' },
+    { name: 'Weekly Events', value: '0', icon: Calendar, type: 'meeting' },
+    { name: 'Productivity Score', value: '0%', icon: BarChart3, type: 'work' },
+    { name: 'Work-Life Balance', value: 'N/A', icon: Award, type: 'relaxation' },
   ]);
   
   useEffect(() => {
@@ -116,34 +123,24 @@ const Dashboard: React.FC = () => {
     fetchScheduleFromStorage();
   }, []);
 
-  // Use the shared getEventColor utility
+  // Use the shared getEventColorVars utility
   const getDashboardEventColor = (eventType: string) => {
-    const colorClass = getEventColor(eventType);
-    // Extract the base color name from the class (e.g., 'red' from 'bg-red-100')
-    const colorMatch = colorClass.match(/bg-(\w+)-\d+/);
-    const colorName = colorMatch ? colorMatch[1] : 'gray';
-    
-    return {
-      bg: `bg-${colorName}-50`,
-      text: `text-${colorName}-800`,
-      border: `border-l-4 border-${colorName}-500`,
-      fullClass: colorClass
-    };
+    return getEventColorVars(eventType);
   };
 
   // Remove the duplicate metrics calculation since we already calculate in fetchScheduleFromStorage
 
   return (
-    <div className="container mx-auto p-4 md:p-8 space-y-8">
+    <div className="space-y-8">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+          <h2 className="text-3xl font-bold tracking-tight text-foreground">Dashboard</h2>
           <p className="text-muted-foreground">
             Welcome to ScheduleWise, your AI-powered scheduling assistant.
           </p>
         </div>
         <Button asChild>
-          <Link to="/onboarding">
+          <Link to="/onboarding" className="flex items-center">
             <PlusCircle className="mr-2 h-4 w-4" />
             Setup Preferences
           </Link>
@@ -163,7 +160,13 @@ const Dashboard: React.FC = () => {
                     </p>
                     <h3 className="text-2xl font-bold">{stat.value}</h3>
                   </div>
-                  <div className={`${stat.color} p-3 rounded-lg`}>
+                  <div 
+                    className="p-3 rounded-lg"
+                    style={{
+                      backgroundColor: getDashboardEventColor(stat.type).bg,
+                      color: getDashboardEventColor(stat.type).text
+                    }}
+                  >
                     <Icon className="h-6 w-6" />
                   </div>
                 </div>
@@ -178,12 +181,12 @@ const Dashboard: React.FC = () => {
           <WeeklyScheduleOverview />
         </Card>
         
-        <Card className="flex flex-col">
-          <CardHeader>
-            <CardTitle>Upcoming Events</CardTitle>
+        <Card className="flex flex-col bg-card">
+          <CardHeader className="bg-card">
+            <CardTitle className="text-card-foreground">Upcoming Events</CardTitle>
             <CardDescription>Your upcoming schedule today</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="bg-card">
             {scheduleData.length > 0 ? (
               <div className="space-y-3">
                 {scheduleData
@@ -207,7 +210,12 @@ const Dashboard: React.FC = () => {
                     return (
                       <div 
                         key={index} 
-                        className={`${colors.bg} ${colors.text} ${colors.border} p-3 rounded-md shadow-sm hover:shadow-md transition-shadow`}
+                        className={`p-3 rounded-md shadow-sm hover:shadow-md transition-all duration-200 border`}
+                        style={{
+                          backgroundColor: colors.bg,
+                          color: colors.text,
+                          borderColor: colors.border
+                        }}
                       >
                         <div className="flex justify-between items-start">
                           <div>
@@ -217,7 +225,13 @@ const Dashboard: React.FC = () => {
                               {endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </p>
                           </div>
-                          <span className="text-xs px-2 py-1 rounded-full bg-white bg-opacity-50 capitalize">
+                          <span 
+                            className="text-xs px-2 py-1 rounded-full capitalize"
+                            style={{
+                              backgroundColor: `${colors.border}40`,
+                              color: colors.text
+                            }}
+                          >
                             {event.type.replace('-', ' ')}
                           </span>
                         </div>
@@ -246,46 +260,65 @@ const Dashboard: React.FC = () => {
               <p className="text-muted-foreground">No events scheduled</p>
             )}
           </CardContent>
-          <CardFooter>
+          <CardFooter className="bg-card border-t">
             <Button variant="outline" className="w-full" asChild>
-              <Link to="/schedule">View All Events</Link>
+              <Link to="/schedule" className="text-foreground hover:text-primary">
+                View All Events
+              </Link>
             </Button>
           </CardFooter>
         </Card>
       </div>
 
       {/* Work-life Balance Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Work-life Balance</CardTitle>
+      <Card className="bg-card">
+        <CardHeader className="bg-card">
+          <CardTitle className="text-card-foreground">Work-life Balance</CardTitle>
           <CardDescription>Your weekly time distribution across different areas</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="bg-card">
           <div className="grid gap-4 md:grid-cols-4 mb-6">
             {[
-              { type: 'Work', color: 'bg-blue-500', value: 40 },
-              { type: 'Personal', color: 'bg-green-500', value: 30 },
-              { type: 'Learning', color: 'bg-purple-500', value: 20 },
-              { type: 'Rest', color: 'bg-yellow-500', value: 10 },
-            ].map((item, index) => (
-              <Card key={index} className="relative overflow-hidden">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium">{item.type}</span>
-                    <span className="font-bold">{item.value}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2.5">
-                    <div 
-                      className={`h-2.5 rounded-full ${item.color}`}
-                      style={{ width: `${item.value}%` }}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+              { type: 'work', value: 40 },
+              { type: 'personal', value: 30 },
+              { type: 'learning', value: 20 },
+              { type: 'relaxation', value: 10 },
+            ].map((item, index) => {
+              const colors = getDashboardEventColor(item.type);
+              return (
+                <Card key={index} className="relative overflow-hidden bg-card">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-medium text-card-foreground">{item.type}</span>
+                      <span className="font-bold text-card-foreground">{item.value}%</span>
+                    </div>
+                    <div className="w-full bg-muted rounded-full h-2.5">
+                      <div 
+                        className="h-2.5 rounded-full transition-all duration-500"
+                        style={{
+                          backgroundColor: colors.bg,
+                          width: `${item.value}%`
+                        }}
+                      />
+                    </div>
+                    <div className="flex items-center mt-2 text-sm">
+                      <div 
+                        className="w-3 h-3 rounded-full mr-2 border"
+                        style={{
+                          backgroundColor: colors.bg,
+                          borderColor: colors.border
+                        }}
+                      />
+                      <span className="capitalize text-card-foreground">{item.type}</span>
+                      <span className="ml-auto font-medium text-card-foreground">{item.value}%</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
           
-          <div className="flex justify-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+          <div className="flex justify-center p-4 bg-accent/10 rounded-lg border border-border">
             <img 
               src="/pic2.png" 
               alt="Work-life balance visualization" 

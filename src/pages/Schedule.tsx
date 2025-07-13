@@ -3,23 +3,40 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { PlusCircle, Calendar as CalendarIcon, Clock, ArrowLeft, ArrowRight } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
+import type { ScheduleEvent } from '@/server/types/ScheduleTypes';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
 import { format, addDays, startOfWeek, isSameDay, parseISO, isWithinInterval } from 'date-fns';
 
 // Import shared event colors utility
-import { getEventColor } from '@/utils/eventColors';
+import { getEventColorVars } from '@/utils/eventColors';
 
 const Schedule = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
   
-  const [scheduleData, setScheduleData] = useState<ScheduleEvent[]>([]);
+  const [scheduleData, setScheduleData] = useState<Array<Omit<ScheduleEvent, 'startTime' | 'endTime'> & { startTime: string; endTime?: string }>>([]);
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(startOfWeek(new Date()));
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isLoading, setIsLoading] = useState(true);
+
+  // Handle add event
+  const handleAddEvent = () => {
+    navigate('/add-event');
+  };
+
+  // Handle event click
+  const handleEventClick = (event: ScheduleEvent) => {
+    // Navigate to edit event page with event data
+    navigate('/edit-event', { 
+      state: { 
+        event,
+        from: location.pathname 
+      } 
+    });
+  };
 
   // Get the week days for the current week view
   const weekDays = Array.from({ length: 7 }).map((_, index) => 
@@ -123,13 +140,13 @@ const Schedule = () => {
     try {
       const date = new Date(dateTimeString);
       if (isNaN(date.getTime())) {
-        console.warn('Invalid date string:', dateTimeString);
+        console.error('Invalid date string:', dateTimeString);
         return 'Invalid time';
       }
-      return format(date, 'h:mm a');
+      return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
     } catch (error) {
       console.error('Error formatting time:', error);
-      return 'Error';
+      return 'Invalid time';
     }
   };
 
@@ -178,7 +195,19 @@ const Schedule = () => {
     return events;
   };
 
-  // Use the shared getEventColor utility
+  // Debug log for event types
+  useEffect(() => {
+    if (scheduleData && scheduleData.length > 0) {
+      console.log('Schedule Data:', scheduleData);
+      console.log('Unique Event Types:', [...new Set(scheduleData.map(e => e.type))]);
+      // Log the computed colors for each event type
+      const uniqueTypes = [...new Set(scheduleData.map(e => e.type))];
+      uniqueTypes.forEach(type => {
+        const colors = getEventColorVars(type);
+        console.log(`Event type "${type}" colors:`, colors);
+      });
+    }
+  }, [scheduleData]);
 
   if (isLoading) {
     return (
@@ -209,7 +238,7 @@ const Schedule = () => {
             <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
-        <Button onClick={() => navigate('/add-event')}>
+        <Button onClick={handleAddEvent}>
           <PlusCircle className="mr-2 h-4 w-4" />
           Add Event
         </Button>
@@ -231,26 +260,38 @@ const Schedule = () => {
                   {format(day, 'd')}
                 </div>
               </div>
-              
-              <div className="p-2 space-y-2 min-h-[200px] max-h-[60vh] overflow-y-auto">
-                {dayEvents.length > 0 ? (
-                  dayEvents.map((event, eventIndex) => (
+            
+            <div className="p-2 space-y-2 min-h-[200px] max-h-[60vh] overflow-y-auto">
+              {dayEvents.length > 0 ? (
+                dayEvents.map((event, eventIndex) => {
+                  const colors = getEventColorVars(event.type);
+                  // Format time range
+                  const timeRange = event.endTime 
+                    ? `${formatTime(event.startTime)} - ${formatTime(event.endTime)}`
+                    : formatTime(event.startTime);
+                  return (
                     <div 
                       key={eventIndex}
-                      className={`p-2 rounded border-l-4 ${getEventColor(event.type)} text-sm cursor-pointer hover:shadow-md transition-shadow`}
-                      onClick={() => setSelectedDate(day)}
+                      className={`p-3 rounded-md mb-2 cursor-pointer hover:shadow-md transition-all duration-200 ${colors.bg} ${colors.border} ${colors.text}`}
+                      onClick={() => handleEventClick(event)}
                     >
-                      <div className="font-medium truncate">{event.title}</div>
-                      <div className="flex items-center text-xs text-gray-600 mt-1">
-                        <Clock className="h-3 w-3 mr-1" />
-                        {formatTime(event.startTime)}
-                        {event.endTime && ` - ${formatTime(event.endTime)}`}
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-semibold truncate">{event.title}</div>
+                          <div className="flex items-center text-xs mt-1">
+                            <Clock className="h-3 w-3 mr-1 flex-shrink-0" />
+                            <span className="truncate">{timeRange}</span>
+                          </div>
+                        </div>
                       </div>
                       {event.description && (
-                        <p className="text-xs mt-1 text-gray-600 truncate">{event.description}</p>
+                        <p className="text-xs mt-2 line-clamp-2 text-gray-700">
+                          {event.description}
+                        </p>
                       )}
-                    </div>
-                  ))
+                      </div>
+                    );
+                  })
                 ) : (
                   <p className="text-xs text-gray-500 text-center py-4">No events</p>
                 )}
@@ -271,29 +312,26 @@ const Schedule = () => {
           
           <div className="space-y-3">
             {getEventsForDay(selectedDate).length > 0 ? (
-              getEventsForDay(selectedDate).map((event, index) => (
-                <div 
-                  key={index}
-                  className={`p-4 rounded-lg border ${getEventColor(event.type)}`}
-                >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-medium text-lg">{event.title}</h3>
-                      <div className="flex items-center text-sm text-gray-700 mt-1">
-                        <Clock className="h-4 w-4 mr-1" />
-                        {formatTime(event.startTime)}
-                        {event.endTime && ` - ${formatTime(event.endTime)}`}
-                      </div>
-                      {event.description && (
-                        <p className="mt-2 text-sm text-gray-700">{event.description}</p>
-                      )}
+              getEventsForDay(selectedDate).map((event, index) => {
+                const colors = getEventColorVars(event.type || 'other');
+                return (
+                  <div 
+                    key={index} 
+                    className={`p-4 rounded-lg border-l-4 ${colors.bg} ${colors.border} ${colors.text} cursor-pointer hover:shadow-md transition-shadow`}
+                    onClick={() => handleEventClick(event)}
+                  >
+                    <div className="font-medium">{event.title}</div>
+                    <div className="flex items-center text-sm mt-1 opacity-90">
+                      <Clock className="h-4 w-4 mr-1" />
+                      {formatTime(event.startTime)}
+                      {event.endTime && ` - ${formatTime(event.endTime)}`}
                     </div>
-                    <span className="px-2 py-1 text-xs rounded-full bg-white bg-opacity-70">
-                      {event.type}
-                    </span>
+                    {event.description && (
+                      <p className="text-sm mt-2 opacity-90">{event.description}</p>
+                    )}
                   </div>
-                </div>
-              ))
+                );
+              })
             ) : (
               <div className="text-center py-8 text-gray-500">
                 No events scheduled for this day.

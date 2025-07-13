@@ -1,19 +1,17 @@
 
-import React from 'react';
 import { Outlet } from 'react-router-dom';
-import Sidebar from './Sidebar';
-import { SidebarProvider } from '@/components/ui/sidebar';
+import { AppSidebar } from './AppSidebar';
 
 const MainLayout = () => {
   return (
-    <SidebarProvider>
-      <div className="min-h-screen flex w-full">
-        <Sidebar />
-        <main className="flex-1 p-6 md:p-8 animate-fade-in">
+    <div className="min-h-screen flex w-full bg-background text-foreground">
+      <AppSidebar />
+      <main className="flex-1 p-6 md:p-8 animate-fade-in overflow-auto">
+        <div className="max-w-7xl mx-auto">
           <Outlet />
-        </main>
-      </div>
-    </SidebarProvider>
+        </div>
+      </main>
+    </div>
   );
 };
 

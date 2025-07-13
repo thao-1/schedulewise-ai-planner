@@ -7,6 +7,55 @@
   :root {
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
+    
+    /* Event Type Colors */
+    --color-meeting-bg: 0 100% 97%;
+    --color-meeting-border: 0 93% 94%;
+    --color-meeting-text: 0 74% 42%;
+    
+    --color-deep-work-bg: 142 76% 93%;
+    --color-deep-work-border: 141 79% 85%;
+    --color-deep-work-text: 142 76% 36%;
+    
+    --color-workout-bg: 47 96% 89%;
+    --color-workout-border: 47 96% 76%;
+    --color-workout-text: 25 95% 53%;
+    
+    --color-meals-bg: 25 95% 90%;
+    --color-meals-border: 25 95% 80%;
+    --color-meals-text: 25 95% 40%;
+    
+    --color-learning-bg: 262 83% 96%;
+    --color-learning-border: 262 83% 89%;
+    --color-learning-text: 262 83% 59%;
+    
+    --color-relaxation-bg: 217 100% 97%;
+    --color-relaxation-border: 217 91% 90%;
+    --color-relaxation-text: 221 83% 53%;
+    
+    --color-work-bg: 226 100% 97%;
+    --color-work-border: 226 96% 90%;
+    --color-work-text: 226 100% 50%;
+    
+    --color-commute-bg: 0 0% 97%;
+    --color-commute-border: 0 0% 90%;
+    --color-commute-text: 0 0% 40%;
+    
+    --color-sleep-bg: 0 0% 97%;
+    --color-sleep-border: 0 0% 90%;
+    --color-sleep-text: 0 0% 40%;
+    
+    --color-personal-bg: 327 73% 97%;
+    --color-personal-border: 327 73% 90%;
+    --color-personal-text: 327 73% 50%;
+    
+    --color-break-bg: 0 0% 97%;
+    --color-break-border: 0 0% 90%;
+    --color-break-text: 0 0% 40%;
+    
+    --color-other-bg: 0 0% 97%;
+    --color-other-border: 0 0% 90%;
+    --color-other-text: 0 0% 40%;
 
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;

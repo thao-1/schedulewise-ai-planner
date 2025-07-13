@@ -3,24 +3,7 @@ import { type Preferences } from '../utils/openai.js';
 // Importing fetch for API calls to OpenAI
 import fetch from 'node-fetch';
 
-// Define the structure of a schedule event
-type EventType = 'work' | 'meeting' | 'deep-work' | 'workout' | 'meals' | 'break' | 'personal' | 'learning' | 'relaxation' | 'commute' | 'sleep';
-
-interface ScheduleEvent {
-  title: string;
-  day: number;
-  hour: number;
-  duration: number;
-  type: EventType;
-  description?: string;
-}
-
-export interface ScheduleResponse {
-  success: boolean;
-  data?: ScheduleEvent[];
-  error?: string;
-  message?: string;
-}
+import { type ScheduleEvent, type ScheduleResponse, type EventType } from '../types/ScheduleTypes.js';
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 if (!OPENAI_API_KEY) {
@@ -60,7 +43,8 @@ export const generateScheduleHandler = async (
       console.error(error);
       return res.status(400).json({ 
         success: false, 
-        error
+        error,
+        data: []
       });
     }
 
@@ -72,7 +56,8 @@ export const generateScheduleHandler = async (
         return res.status(500).json({
           success: false,
           error: result.error || 'Failed to generate schedule',
-          message: result.message
+          message: result.message,
+          data: []
         });
       }
       
@@ -88,7 +73,8 @@ export const generateScheduleHandler = async (
       return res.status(500).json({
         success: false,
         error: errorMessage,
-        message: 'Failed to generate schedule. Please check your preferences and try again.'
+        message: 'Failed to generate schedule. Please check your preferences and try again.',
+        data: []
       });
     }
     
@@ -98,7 +84,8 @@ export const generateScheduleHandler = async (
     return res.status(500).json({
       success: false,
       error: error.message || 'An unexpected error occurred',
-      message: 'Failed to generate schedule. Please try again.'
+      message: 'Failed to generate schedule. Please try again.',
+      data: []
     });
   }
 };
@@ -123,62 +110,77 @@ async function generateSchedule(preferences: Preferences, _userId: string = 'ano
     console.log("Sending request to OpenAI with preferences:", JSON.stringify(preferences, null, 2));
     console.log("OpenAI API Key exists:", !!OPENAI_API_KEY);
 
-    // Enhanced system prompt with strict JSON formatting requirements
-    const systemPrompt = [
-      'You are a helpful assistant that creates optimized weekly schedules based on user preferences.',
-      'The schedule should be returned as a VALID JSON object with the following structure:',
-      '{"schedule":[{"title":"Event Title","day":0,"hour":9.5,"duration":1.5,"type":"work","description":"Brief description"}]}',
-      '',
-      'FIELD REQUIREMENTS:',
-      '- day: Must be an integer between 0-6 (0=Sunday, 1=Monday, etc.)',
-      '- hour: Must be a number between 0 and 23.75 (e.g., 9.5 for 9:30 AM, 13.75 for 1:45 PM)',
-      '  * 0 = 12:00 AM, 23.75 = 11:45 PM',
-      '  * Only use .0, .25, .5, or .75 for minutes (15 minute increments)',
-      '- duration: Must be a positive number in hours (e.g., 1.5 for 1 hour 30 minutes)',
-      '- type: Must be one of: work, meeting, deep-work, workout, meals, break, personal, learning, relaxation, commute, sleep',
-      '',
-      'IMPORTANT RULES:',
-      '1. Response MUST be valid JSON that can be parsed with JSON.parse()',
-      '2. Use double quotes for all property names and string values',
-      '3. Do NOT include any text before or after the JSON object',
-      '4. Do NOT include markdown code block syntax (```json and ```)',
-      '5. Include events for ALL 7 days of the week (Sunday to Saturday)',
-      '6. Make sure all required fields are included for each event',
-      '7. HOUR VALUES MUST BE BETWEEN 0 AND 23.75',
-      '8. DAY VALUES MUST BE INTEGERS BETWEEN 0-6',
-      '9. DURATION MUST BE A POSITIVE NUMBER',
-      '10. TYPE MUST BE ONE OF THE ALLOWED VALUES',
-      '',
-      'Schedule Guidelines:',
-      '1. Generate a complete 7-day schedule (Sunday to Saturday)',
-      '2. Each day should have a balanced mix of work, personal time, and rest',
-      '3. Include appropriate breaks between different types of activities',
-      '4. Schedule deep work during the user\'s most productive hours if known',
-      '5. Add workout sessions based on the user\'s preferred time',
-      '6. Allocate time for meals (breakfast, lunch, dinner)',
-      '7. Ensure 7-9 hours of sleep per night',
-      '8. Include commute times if applicable',
-      '9. Account for personal activities and relaxation time',
-      '10. Double-check all hour values are within 0-23.75 range before returning'
-    ].join('\n');
+    const systemPrompt = `You are an AI scheduler that creates detailed weekly schedules. Follow these steps:
+
+1. FIRST, analyze the user's preferences and plan the schedule structure
+2. THEN, create a schedule using the EXACT event types listed below
+3. FINALLY, format the response as valid JSON
+
+EVENT TYPES (USE THESE EXACT STRINGS):
+- 'work': Regular work tasks
+- 'deep-work': Focused work sessions
+- 'meeting': Team or client meetings
+- 'workout': Exercise time
+- 'breakfast': Morning meal
+- 'lunch': Midday meal
+- 'dinner': Evening meal
+- 'break': Short breaks (15-30 min)
+- 'personal': Personal errands
+- 'learning': Skill development
+- 'relaxation': Leisure time
+- 'commute': Travel time
+- 'sleep': Night sleep
+
+IMPORTANT:
+- NEVER use 'other' or 'meals' as event types
+- ALWAYS use the exact type strings above
+- Include at least 8 different event types
+- Format response as valid JSON with double quotes`;
 
     const currentDate = new Date();
-    const userPrompt = `Create a detailed 7-day weekly schedule based on the following preferences. The schedule starts on ${currentDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.
+    const userPrompt = `Create a 7-day schedule starting ${currentDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.
 
-User Preferences:
-${JSON.stringify(preferences, null, 2)}
+PREFERENCES:
+- Work Hours: ${preferences.workHours || '9 AM - 5 PM'}
+- Deep Work: ${preferences.deepWorkHours || 2}h/day
+- Activities: ${preferences.personalActivities?.join(', ') || 'None'}
+- Workout: ${preferences.workoutTime || 'Not specified'}
+- Meetings: ${preferences.meetingPreference || 'Flexible'}
 
-Please generate a complete 7-day schedule (Sunday to Saturday) following these guidelines:
-1. Include all standard daily activities (sleep, meals, work, etc.)
-2. Allocate time for the specific preferences mentioned above
-3. Schedule deep work during the user's most productive hours if known
-4. Add workout sessions based on the user's preferred time
-5. Allocate time for meals (breakfast, lunch, dinner)
-6. Ensure 7-9 hours of sleep per night
-7. Make sure to include events for all 7 days of the week
-8. For each day, include a good balance of work, personal time, and rest
+RULES:
+1. For EACH day, include these activities with EXACT types:
+   - 3 meals: 'breakfast', 'lunch', 'dinner'
+   - Work: 'work' (4-6h) + 'deep-work' (1-2h)
+   - Breaks: 'break' (15min every 2h)
+   - Exercise: 'workout' (30-60min)
+   - Personal: 'personal' or 'learning' or 'relaxation' (1-2h)
+   - Sleep: 'sleep' (7-9h)
+   - Commute: 'commute' if needed
+   - Meetings: 'meeting' as needed
 
-Return the schedule as a JSON object with a "schedule" array containing all events.`;
+2. NEVER use: 'other' or 'meals'
+3. ALWAYS use the exact type strings provided
+4. Vary activities to use at least 8 different types per day
+
+SAMPLE DAY (as reference only):
+{
+  "schedule": [
+    {"title":"Morning Routine","day":1,"hour":7,"duration":1,"type":"personal"},
+    {"title":"Breakfast","day":1,"hour":8,"duration":0.5,"type":"breakfast"},
+    {"title":"Deep Work","day":1,"hour":9,"duration":2,"type":"deep-work"},
+    {"title":"Team Standup","day":1,"hour":11,"duration":0.5,"type":"meeting"},
+    {"title":"Lunch Break","day":1,"hour":12,"duration":1,"type":"lunch"},
+    {"title":"Project Work","day":1,"hour":13,"duration":3,"type":"work"},
+    {"title":"Quick Break","day":1,"hour":15,"duration":0.25,"type":"break"},
+    {"title":"Gym Session","day":1,"hour":17,"duration":1,"type":"workout"},
+    {"title":"Dinner","day":1,"hour":18.5,"duration":0.75,"type":"dinner"},
+    {"title":"Reading","day":1,"hour":19.5,"duration":1,"type":"learning"},
+    {"title":"Wind Down","day":1,"hour":21,"duration":1,"type":"relaxation"},
+    {"title":"Sleep","day":1,"hour":22,"duration":8,"type":"sleep"}
+  ]
+}
+
+IMPORTANT: Return ONLY valid JSON with the schedule.`;
 
     // Make API call to OpenAI
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -275,13 +277,59 @@ Return the schedule as a JSON object with a "schedule" array containing all even
   
     // Validate the parsed content
     if (!parsedContent || typeof parsedContent !== 'object') {
-      console.error('Invalid content format in response:', parsedContent);
-      throw new Error('The AI response did not contain valid content.');
+      console.error('Invalid response format from OpenAI:', parsedContent);
+      throw new Error('The AI response format is invalid.');
+    }
+
+    // Check if we have a schedule array in the response
+    if (!('schedule' in parsedContent)) {
+      console.error('Missing schedule array in response:', parsedContent);
+      throw new Error('The AI response is missing the schedule array.');
+    }
+
+    // Ensure the schedule is an array
+    if (!Array.isArray(parsedContent.schedule)) {
+      console.error('Schedule is not an array:', parsedContent.schedule);
+      throw new Error('The schedule format is invalid. Expected an array of events.');
+    }
+
+    // Log the number of events received for debugging
+    console.log(`Received ${parsedContent.schedule.length} events in the schedule`);
+
+    // Check for required event types
+    const requiredTypes = ['work', 'meeting', 'breakfast', 'lunch', 'dinner', 'sleep'];
+    const recommendedTypes = ['deep-work', 'workout', 'break', 'personal', 'learning', 'relaxation', 'commute'];
+    
+    const foundTypes = new Set<string>();
+    const allEvents = parsedContent.schedule as ScheduleEvent[];
+    
+    // Log first few events for debugging
+    if (allEvents.length > 0) {
+      console.log('First few events:', allEvents.slice(0, 3));
     }
     
-    if (!('schedule' in parsedContent) || !Array.isArray(parsedContent.schedule)) {
-      console.error('Invalid schedule format in response:', parsedContent);
-      throw new Error('The AI response did not contain a valid schedule format.');
+    allEvents.forEach((event, index) => {
+      if (!event.type) {
+        console.error(`Event at index ${index} is missing type:`, event);
+      } else {
+        foundTypes.add(event.type);
+      }
+    });
+
+    // Log all found types for debugging
+    console.log('Found event types:', Array.from(foundTypes).join(', '));
+
+    // Check for missing required types
+    const missingRequiredTypes = requiredTypes.filter(type => !foundTypes.has(type));
+    if (missingRequiredTypes.length > 0) {
+      console.warn(`Missing required event types: ${missingRequiredTypes.join(', ')}`);
+      // Don't throw an error, just log a warning
+    }
+
+    // Check for recommended types
+    const missingRecommendedTypes = recommendedTypes.filter(type => !foundTypes.has(type));
+    if (missingRecommendedTypes.length > 0) {
+      console.log(`Consider adding these recommended event types: ${missingRecommendedTypes.join(', ')}`);
     }
 
     const schedule = parsedContent.schedule;
@@ -325,7 +373,12 @@ Return the schedule as a JSON object with a "schedule" array containing all even
         throw new Error(`Event duration at index ${index} must be a positive number`);
       }
       
-      const validTypes: EventType[] = ['work', 'meeting', 'deep-work', 'workout', 'meals', 'break', 'personal', 'learning', 'relaxation', 'commute', 'sleep'];
+      // Use the EventType from ScheduleTypes to ensure type safety
+      const validTypes: EventType[] = [
+        'work', 'meeting', 'deep-work', 'workout', 'breakfast', 'lunch', 
+        'dinner', 'meals', 'break', 'personal', 'learning', 'relaxation', 
+        'commute', 'sleep', 'other'
+      ];
       if (!validTypes.includes(event.type)) {
         throw new Error(`Event type at index ${index} is not valid. Must be one of: ${validTypes.join(', ')}`);
       }
@@ -345,19 +398,33 @@ Return the schedule as a JSON object with a "schedule" array containing all even
       
       // Return the validated event with startTime and endTime
       return {
-        title: event.title,
-        day: event.day,
-        hour: event.hour,
-        duration: event.duration,
-        type: event.type as EventType,
+        id: `event-${index}-${Date.now()}`,
+        title: event.title || 'Untitled Event',
+        day: typeof event.day === 'number' ? event.day : 0,
+        hour: typeof event.hour === 'number' ? event.hour : 9,
+        duration: typeof event.duration === 'number' ? event.duration : 1,
+        type: event.type || 'other',
         description: event.description || '',
         startTime: startTime,
         endTime: endTime
       };
     });
+
+    // Log the final schedule for debugging
+    console.log(`Returning ${validatedSchedule.length} validated events`);
+    if (validatedSchedule.length > 0) {
+      console.log('First validated event:', validatedSchedule[0]);
+    }
+
+    // Get unique event types for the response
+    const eventTypes = Array.from(new Set(validatedSchedule.map(e => e.type)));
+    console.log('Final event types:', eventTypes.join(', '));
+
     return {
       success: true,
-      data: validatedSchedule
+      data: validatedSchedule,
+      message: 'Schedule generated successfully',
+      eventTypes: eventTypes
     };
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
@@ -366,7 +433,8 @@ Return the schedule as a JSON object with a "schedule" array containing all even
     return {
       success: false,
       error: errorMessage,
-      message: 'Failed to generate schedule. Please try again.'
+      message: 'Failed to generate schedule. Please try again.',
+      data: []
     };
   }
 }
