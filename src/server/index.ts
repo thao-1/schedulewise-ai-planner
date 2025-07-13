@@ -1,6 +1,18 @@
 import { EventEmitter } from 'events';
 import 'dotenv/config';
 import express from 'express';
+
+// Validate required environment variables
+const requiredEnvVars = ['OPENAI_API_KEY', 'MONGODB_URI', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'SESSION_SECRET'];
+const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+
+if (missingVars.length > 0) {
+  console.error('❌ Missing required environment variables:', missingVars.join(', '));
+  console.error('Please check your .env file and ensure all required variables are set.');
+  process.exit(1);
+}
+
+console.log('✅ All required environment variables are present');
 import cors from 'cors';
 import session from 'express-session';
 import passport from 'passport';
@@ -135,6 +147,10 @@ app.use((_req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+
+// Mount routes
+app.use('/api/schedule', scheduleRoutes);
+app.use('/api/auth', authRoutes);
 
 // Error Handler
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

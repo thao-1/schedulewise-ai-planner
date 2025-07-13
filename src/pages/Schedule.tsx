@@ -127,42 +127,64 @@ const Schedule = () => {
     setSelectedDate(new Date());
   };
 
-  // Format time to HH:MM
-  const formatTime = (timeString: string) => {
-    return format(new Date(`2000-01-01T${timeString}`), 'h:mm a');
+  // Format time to h:mm a (e.g., 2:30 PM)
+  const formatTime = (dateTimeString: string) => {
+    try {
+      const date = new Date(dateTimeString);
+      if (isNaN(date.getTime())) {
+        console.warn('Invalid date string:', dateTimeString);
+        return 'Invalid time';
+      }
+      return format(date, 'h:mm a');
+    } catch (error) {
+      console.error('Error formatting time:', error);
+      return 'Error';
+    }
   };
 
   // Get events for a specific day
   const getEventsForDay = (day: Date) => {
-    console.log('Getting events for day:', day);
-    console.log('Current scheduleData:', scheduleData);
+    if (!scheduleData || scheduleData.length === 0) {
+      return [];
+    }
     
-    const events = scheduleData.filter(event => {
-      if (!event.startTime) {
-        console.warn('Event missing startTime:', event);
-        return false;
-      }
-      
-      try {
-        const eventDate = new Date(event.startTime);
-        if (isNaN(eventDate.getTime())) {
-          console.warn('Invalid date for event:', event);
+    const dayOfWeek = day.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    
+    const events = scheduleData
+      .filter(event => {
+        // First check if the event is for this day of the week
+        if (event.day !== dayOfWeek) {
           return false;
         }
         
-        const isSame = isSameDay(eventDate, day);
-        if (isSame) {
-          console.log('Matched event:', event);
+        // Then verify the date is valid
+        if (!event.startTime) {
+          console.warn('Event missing startTime:', event);
+          return false;
         }
-        return isSame;
-      } catch (error) {
-        console.error('Error processing event:', event, error);
-        return false;
-      }
-    });
+        
+        try {
+          const eventDate = new Date(event.startTime);
+          if (isNaN(eventDate.getTime())) {
+            console.warn('Invalid date for event:', event);
+            return false;
+          }
+          
+          // Check if the event date matches the target day
+          return isSameDay(eventDate, day);
+        } catch (error) {
+          console.error('Error processing event:', event, error);
+          return false;
+        }
+      })
+      .sort((a, b) => {
+        // Sort by start time
+        const timeA = a.hour * 60 + ((a.hour % 1) * 60);
+        const timeB = b.hour * 60 + ((b.hour % 1) * 60);
+        return timeA - timeB;
+      });
     
-    console.log(`Found ${events.length} events for ${day}`);
-    return events.sort((a, b) => a.startTime.localeCompare(b.startTime));
+    return events;
   };
 
   // Get color class for an event type
