@@ -129,10 +129,13 @@ async function generateSchedule(preferences: Preferences, _userId: string = 'ano
       'The schedule should be returned as a VALID JSON object with the following structure:',
       '{"schedule":[{"title":"Event Title","day":0,"hour":9.5,"duration":1.5,"type":"work","description":"Brief description"}]}',
       '',
-      '- day: 0-6 (0=Sunday, 1=Monday, etc.)',
-      '- hour: 0-23.75 (e.g., 9.5 for 9:30 AM, 13.75 for 1:45 PM)',
-      '- duration: in hours (e.g., 1.5 for 1 hour 30 minutes)',
-      '- type: work|meeting|deep-work|workout|meals|break|personal|learning|relaxation|commute|sleep',
+      'FIELD REQUIREMENTS:',
+      '- day: Must be an integer between 0-6 (0=Sunday, 1=Monday, etc.)',
+      '- hour: Must be a number between 0 and 23.75 (e.g., 9.5 for 9:30 AM, 13.75 for 1:45 PM)',
+      '  * 0 = 12:00 AM, 23.75 = 11:45 PM',
+      '  * Only use .0, .25, .5, or .75 for minutes (15 minute increments)',
+      '- duration: Must be a positive number in hours (e.g., 1.5 for 1 hour 30 minutes)',
+      '- type: Must be one of: work, meeting, deep-work, workout, meals, break, personal, learning, relaxation, commute, sleep',
       '',
       'IMPORTANT RULES:',
       '1. Response MUST be valid JSON that can be parsed with JSON.parse()',
@@ -141,6 +144,10 @@ async function generateSchedule(preferences: Preferences, _userId: string = 'ano
       '4. Do NOT include markdown code block syntax (```json and ```)',
       '5. Include events for ALL 7 days of the week (Sunday to Saturday)',
       '6. Make sure all required fields are included for each event',
+      '7. HOUR VALUES MUST BE BETWEEN 0 AND 23.75',
+      '8. DAY VALUES MUST BE INTEGERS BETWEEN 0-6',
+      '9. DURATION MUST BE A POSITIVE NUMBER',
+      '10. TYPE MUST BE ONE OF THE ALLOWED VALUES',
       '',
       'Schedule Guidelines:',
       '1. Generate a complete 7-day schedule (Sunday to Saturday)',
@@ -151,7 +158,8 @@ async function generateSchedule(preferences: Preferences, _userId: string = 'ano
       '6. Allocate time for meals (breakfast, lunch, dinner)',
       '7. Ensure 7-9 hours of sleep per night',
       '8. Include commute times if applicable',
-      '9. Account for personal activities and relaxation time'
+      '9. Account for personal activities and relaxation time',
+      '10. Double-check all hour values are within 0-23.75 range before returning'
     ].join('\n');
 
     const currentDate = new Date();
@@ -300,8 +308,17 @@ Return the schedule as a JSON object with a "schedule" array containing all even
         throw new Error(`Event day at index ${index} must be a number between 0 and 6`);
       }
       
-      if (typeof event.hour !== 'number' || event.hour < 0 || event.hour > 23.75) {
+      // Validate hour is a number and within valid range
+      if (typeof event.hour !== 'number' || isNaN(event.hour) || event.hour < 0 || event.hour > 23.75) {
+        console.error(`Invalid hour value at index ${index}:`, event.hour);
         throw new Error(`Event hour at index ${index} must be a number between 0 and 23.75`);
+      }
+      
+      // Ensure hour is in 15-minute increments (0, 0.25, 0.5, 0.75)
+      const minutes = (event.hour % 1) * 60;
+      if (minutes % 15 !== 0) {
+        console.warn(`Hour value at index ${index} is not in 15-minute increments, rounding:`, event.hour);
+        event.hour = Math.round(event.hour * 4) / 4; // Round to nearest 15 minutes
       }
       
       if (typeof event.duration !== 'number' || event.duration <= 0) {

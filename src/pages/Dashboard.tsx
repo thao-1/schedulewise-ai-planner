@@ -16,6 +16,7 @@ import {
   Award, 
   BarChart3 
 } from 'lucide-react';
+import { getEventColor } from '@/utils/eventColors';
 
 const WeeklyScheduleOverview = () => {
   const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -115,16 +116,19 @@ const Dashboard: React.FC = () => {
     fetchScheduleFromStorage();
   }, []);
 
-  const getEventColor = (eventType: string) => {
-    const colors: Record<string, { bg: string; text: string; border: string }> = {
-      'meeting': { bg: 'bg-purple-50', text: 'text-purple-800', border: 'border-l-4 border-purple-500' },
-      'deep-work': { bg: 'bg-blue-50', text: 'text-blue-800', border: 'border-l-4 border-blue-500' },
-      'work': { bg: 'bg-blue-50', text: 'text-blue-800', border: 'border-l-4 border-blue-500' },
-      'workout': { bg: 'bg-green-50', text: 'text-green-800', border: 'border-l-4 border-green-500' },
-      'meals': { bg: 'bg-yellow-50', text: 'text-yellow-800', border: 'border-l-4 border-yellow-500' },
-      'default': { bg: 'bg-gray-50', text: 'text-gray-800', border: 'border-l-4 border-gray-500' }
+  // Use the shared getEventColor utility
+  const getDashboardEventColor = (eventType: string) => {
+    const colorClass = getEventColor(eventType);
+    // Extract the base color name from the class (e.g., 'red' from 'bg-red-100')
+    const colorMatch = colorClass.match(/bg-(\w+)-\d+/);
+    const colorName = colorMatch ? colorMatch[1] : 'gray';
+    
+    return {
+      bg: `bg-${colorName}-50`,
+      text: `text-${colorName}-800`,
+      border: `border-l-4 border-${colorName}-500`,
+      fullClass: colorClass
     };
-    return colors[eventType] || colors.default;
   };
 
   // Remove the duplicate metrics calculation since we already calculate in fetchScheduleFromStorage
@@ -196,7 +200,7 @@ const Dashboard: React.FC = () => {
                   .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
                   .slice(0, 5)
                   .map((event, index) => {
-                    const colors = getEventColor(event.type);
+                    const colors = getDashboardEventColor(event.type);
                     const eventDate = new Date(event.startTime);
                     const endTime = new Date(eventDate.getTime() + (event.duration * 60 * 1000));
                     
