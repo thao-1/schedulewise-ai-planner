@@ -51,12 +51,18 @@ const Onboarding = () => {
       // Simulate API call to save preferences
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      // Generate schedule with required parameters
+      // Generate schedule with the preferences
       await generateSchedule({
-        email: 'user@example.com', // Replace with actual user email
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        apiKey: '', // You should get this from your environment variables
-        prompt: JSON.stringify(preferences),
+        preferences: {
+          workHours: preferences.workHours || '9-5',
+          deepWorkHours: preferences.deepWorkHours || '2',
+          personalActivities: preferences.personalActivities || [],
+          workoutTime: preferences.workoutTime,
+          meetingPreference: preferences.meetingPreference,
+          meetingsPerDay: preferences.meetingsPerDay,
+          autoReschedule: preferences.autoReschedule,
+          customPreferences: preferences.customPreferences
+        },
         onSuccess: () => {
           toast.success('Schedule generated successfully!');
           navigate('/dashboard');

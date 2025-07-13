@@ -47,13 +47,21 @@ const AddEvent = () => {
       const existingScheduleStr = localStorage.getItem('generatedSchedule');
       const existingSchedule = existingScheduleStr ? JSON.parse(existingScheduleStr) : [];
       
-      // Create new event
+      // Create a date object for the event
+      const eventDate = new Date();
+      // Set to next occurrence of the selected day (0 = Sunday, 1 = Monday, etc.)
+      const dayOfWeek = parseInt(formData.day);
+      const daysToAdd = (dayOfWeek - eventDate.getDay() + 7) % 7;
+      eventDate.setDate(eventDate.getDate() + daysToAdd);
+      eventDate.setHours(parseInt(formData.hour), 0, 0, 0);
+      
+      // Create new event in the format expected by Schedule.tsx
       const newEvent = {
+        id: Date.now().toString(),
         title: formData.title,
         description: formData.description,
-        day: parseInt(formData.day),
-        hour: parseInt(formData.hour),
-        duration: parseInt(formData.duration),
+        startTime: eventDate.toISOString(),
+        duration: parseInt(formData.duration) * 60, // Convert hours to minutes
         type: formData.type
       };
       

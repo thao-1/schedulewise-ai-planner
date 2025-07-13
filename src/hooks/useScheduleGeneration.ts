@@ -2,13 +2,29 @@
 import { useState, useCallback } from 'react';
 import { useToast } from "@/components/ui/use-toast";
 
+interface ScheduleEvent {
+  day: number;
+  hour: number;
+  duration: number;
+  title: string;
+  type: string;
+  description?: string;
+  id?: string;
+}
+
 interface ScheduleGenerationParams {
-  apiKey: string;
-  prompt: string;
-  email: string;
-  timezone: string;
-  onSuccess?: (schedule: any) => void;
-  onError?: (error: any) => void;
+  preferences: {
+    workHours: string;
+    deepWorkHours: string;
+    personalActivities: string[];
+    workoutTime?: string;
+    meetingPreference?: string;
+    meetingsPerDay?: number | string;
+    autoReschedule?: boolean;
+    customPreferences?: string;
+  };
+  onSuccess?: (schedule: ScheduleEvent[]) => void;
+  onError?: (error: Error) => void;
 }
 
 const useScheduleGeneration = () => {
@@ -16,53 +32,49 @@ const useScheduleGeneration = () => {
   const { toast } = useToast();
 
   const generateSchedule = useCallback(
-    async ({ apiKey, prompt, email, timezone, onSuccess, onError }: ScheduleGenerationParams) => {
+    async ({ preferences, onSuccess, onError }: ScheduleGenerationParams) => {
       setIsLoading(true);
       try {
-        // Change to call the Supabase Edge Function directly
-        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-schedule`, {
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const response = await fetch(`${apiUrl}/api/schedule/generate`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY || '',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || ''}`,
           },
-          body: JSON.stringify({
-            preferences: JSON.parse(prompt)
-          }),
+          body: JSON.stringify({ preferences }),
         });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          console.error('API Error:', errorData);
-          toast({
-            title: "Error generating schedule",
-            description: errorData.error || "Please check your preferences and try again.",
-            variant: "destructive",
-          })
-          onError?.(errorData);
-          throw new Error(`Failed to generate schedule: ${response.status}`);
-        }
 
         const result = await response.json();
         console.log('Schedule Result:', result);
 
-        if (result && result.schedule) {
-          // The schedule is already parsed JSON from the Edge Function
-          console.log('Parsed Schedule:', result.schedule);
-
-          localStorage.setItem('generatedSchedule', JSON.stringify(result.schedule));
-
-          onSuccess?.(result.schedule);
-        } else {
-          console.error('Invalid schedule format received from API');
-          toast({
-            title: "Error generating schedule",
-            description: "Invalid schedule format received from the server.",
-            variant: "destructive",
-          })
-          onError?.('Invalid schedule format received from API');
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to generate schedule');
         }
+
+        // The API returns the schedule directly as an array
+        if (!Array.isArray(result)) {
+          throw new Error('Invalid schedule format received from API');
+        }
+
+        // Format the schedule to ensure it matches our expected format
+        const formattedSchedule = result.map((event: any) => ({
+          ...event,
+          day: event.day ?? 0,
+          hour: event.hour ?? 9,
+          duration: event.duration ?? 1,
+          title: event.title || 'Untitled Event',
+          type: event.type || 'work',
+          id: event.id || crypto.randomUUID(),
+        }));
+        
+        console.log('Formatted Schedule:', formattedSchedule);
+        
+        toast({
+          title: "Schedule generated successfully!",
+          description: "Your personalized schedule has been created.",
+        });
+        
+        onSuccess?.(formattedSchedule);
       } catch (error: any) {
         console.error('Error generating schedule:', error);
         toast({
@@ -169,20 +181,6 @@ const useScheduleGeneration = () => {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const getGoogleCalendarTime = (dayOfWeek: number, hour: number, timezone: string) => {
-    const now = new Date();
-    const currentDayOfWeek = now.getDay();
-    const daysToAdd = (dayOfWeek - currentDayOfWeek + 7) % 7;
-    const nextDate = new Date(now.setDate(now.getDate() + daysToAdd));
-
-    const eventDate = new Date(nextDate);
-    eventDate.setHours(Math.floor(hour));
-    eventDate.setMinutes(Math.round((hour % 1) * 60));
-    eventDate.setSeconds(0);
-
-    return eventDate.toISOString();
   };
 
   return {

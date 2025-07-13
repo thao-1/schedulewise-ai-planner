@@ -1,11 +1,97 @@
-# React + TypeScript + Vite
+# React + TypeScript + ScheduleWise AI Planner
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+An intelligent scheduling application that helps you plan your week using AI.
 
-Currently, two official plugins are available:
+## Project Structure
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+```
+.
+├── src/
+│   ├── components/     # React components
+│   ├── pages/         # Page components
+│   ├── server/        # Backend server code
+│   │   ├── api/       # API route handlers
+│   │   ├── routes/    # Express routes
+│   │   ├── utils/     # Utility functions
+│   │   ├── config.ts  # Server configuration
+│   │   └── index.ts   # Server entry point
+│   └── ...            # Other frontend code
+├── env.example        # Example environment variables
+└── ...
+```
+
+## Features
+
+- AI-powered weekly schedule generation
+- Intuitive drag-and-drop interface
+- Task prioritization and categorization
+- Responsive design for all devices
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18+
+- npm or yarn
+- OpenAI API key
+
+### Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/your-username/schedulewise-ai-planner.git
+   cd schedulewise-ai-planner
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Set up environment variables:
+   ```bash
+   cp env.example .env
+   ```
+   Edit the `.env` file and add your OpenAI API key.
+
+### Development
+
+To start the development server:
+
+```bash
+# Start both frontend and backend
+npm run dev
+
+# Or start them separately
+npm run dev:frontend  # Frontend on port 8080
+npm run dev:server    # Backend on port 3001
+```
+
+### Building for Production
+
+```bash
+# Build both frontend and backend
+npm run build:all
+
+# Start production server
+npm start
+```
+
+## Environment Variables
+
+- `VITE_OPENAI_API_KEY` - Your OpenAI API key (required)
+- `VITE_SERVER_PORT` - Port for the backend server (default: 3001)
+- `VITE_CLIENT_URL` - URL of the frontend (for CORS, default: http://localhost:8080)
+- `NODE_ENV` - Environment (development/production)
+
+## API Endpoints
+
+- `POST /api/schedule/generate` - Generate a new schedule
+- `GET /api/health` - Health check endpoint
+
+## License
+
+This project is licensed under the MIT License.
 
 ## Expanding the ESLint configuration
 

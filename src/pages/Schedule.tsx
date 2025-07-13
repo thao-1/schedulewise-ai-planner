@@ -9,7 +9,7 @@ import { Calendar } from '@/components/ui/calendar';
 
 const Schedule = () => {
   const [scheduleData, setScheduleData] = useState<any[]>([]);
-  const [selectedDate] = useState<Date | undefined>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -29,9 +29,8 @@ const Schedule = () => {
     fetchScheduleFromStorage();
   }, []);
 
-  // Date selection is handled by the Calendar component
-  const handleDateSelect = () => {
-    // No-op since we're not using the date parameter
+  const handleDateSelect = (date: Date | undefined) => {
+    setSelectedDate(date);
   };
 
   const handleSyncToGoogle = async () => {
