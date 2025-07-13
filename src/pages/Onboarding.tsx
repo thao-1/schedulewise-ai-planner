@@ -13,6 +13,7 @@ import { useOnboarding } from '@/hooks/useOnboarding';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import useScheduleGeneration from '@/hooks/useScheduleGeneration';
+import type { ScheduleEvent } from '@/hooks/useScheduleGeneration';
 
 /*************  ✨ Windsurf Command ⭐  *************/
 /**
@@ -45,11 +46,7 @@ const Onboarding = () => {
     setGenerationAttempted(true);
 
     try {
-      // Here you would typically save preferences to your backend
-      console.log('Preferences to save:', preferences);
-      
-      // Simulate API call to save preferences
-      await new Promise(resolve => setTimeout(resolve, 500));
+      console.log('Generating schedule with preferences:', preferences);
       
       // Generate schedule with the preferences
       await generateSchedule({
@@ -57,24 +54,27 @@ const Onboarding = () => {
           workHours: preferences.workHours || '9-5',
           deepWorkHours: preferences.deepWorkHours || '2',
           personalActivities: preferences.personalActivities || [],
-          workoutTime: preferences.workoutTime,
-          meetingPreference: preferences.meetingPreference,
-          meetingsPerDay: preferences.meetingsPerDay,
-          autoReschedule: preferences.autoReschedule,
-          customPreferences: preferences.customPreferences
+          workoutTime: preferences.workoutTime || '18:00',
+          meetingPreference: preferences.meetingPreference || 'afternoon',
+          meetingsPerDay: preferences.meetingsPerDay || 2,
+          autoReschedule: preferences.autoReschedule !== undefined ? preferences.autoReschedule : true,
+          customPreferences: preferences.customPreferences || ''
         },
-        onSuccess: () => {
+        onSuccess: (schedule: ScheduleEvent[]) => {
+          console.log('Generated schedule:', schedule);
           toast.success('Schedule generated successfully!');
-          navigate('/dashboard');
+          navigate('/dashboard', { state: { schedule } });
         },
-        onError: (error) => {
-          setGenerationError(error.message || 'Unknown error');
-          toast.error('Failed to generate schedule');
+        onError: (error: Error) => {
+          console.error('Error generating schedule:', error);
+          setGenerationError(error.message || 'Failed to generate schedule');
+          toast.error('Failed to generate schedule. Please try again.');
         }
       });
-    } catch (error) {
-      console.error('Error completing onboarding:', error);
-      setGenerationError('An unexpected error occurred. Please try again.');
+    } catch (error: unknown) {
+      console.error('Error in handleComplete:', error);
+      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
+      setGenerationError(errorMessage);
       toast.error('Failed to complete onboarding');
     }
   };

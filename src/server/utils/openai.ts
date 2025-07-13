@@ -46,6 +46,7 @@ export async function generateSchedule(preferences: Preferences): Promise<Schedu
   try {
     // Validate OpenAI API key
     if (!config.openai.apiKey) {
+      console.error('OpenAI API key is not configured');
       throw new Error('OpenAI API key is not configured');
     }
 
@@ -55,7 +56,11 @@ export async function generateSchedule(preferences: Preferences): Promise<Schedu
     if (preferences.userEmail) userContext.push(`Email: ${preferences.userEmail}`);
     if (preferences.userId) userContext.push(`User ID: ${preferences.userId}`);
 
-    const systemPrompt = `You are an AI scheduler specialized in creating optimized weekly schedules to improve productivity and work-life balance.`;
+    const systemPrompt = `You are an AI scheduler specialized in creating optimized weekly schedules to improve productivity and work-life balance.
+    
+    Your task is to generate a weekly schedule based on the user's preferences. The schedule should be realistic, balanced, and tailored to the user's needs.
+    
+    IMPORTANT: Return ONLY a valid JSON array of schedule events. Do not include any other text or explanation.`;
 
     const userPrompt = `
 User context:
@@ -88,8 +93,11 @@ Return ONLY a valid JSON array of events with these properties:
 - type (one of: sleep/work/meeting/deep-work/workout/meals/learning/relaxation/commute)
 - description (optional, more details about the activity)`;
 
+    console.log('Sending request to OpenAI with prompt:', userPrompt);
+    
     const response = await openai.chat.completions.create({
       model: 'gpt-4-turbo-preview',
+      response_format: { type: 'json_object' },
       messages: [
         {
           role: 'system',
@@ -97,73 +105,53 @@ Return ONLY a valid JSON array of events with these properties:
         },
         { 
           role: 'user', 
-          content: userPrompt + '\n\nReturn the schedule as a JSON array of events with the following structure: ' +
-            '[' +
-            '  {' +
-            '    "id": "unique-id",' +
-            '    "title": "Event title",' +
-            '    "description": "Event description",' +
-            '    "startTime": "HH:MM",' +
-            '    "endTime": "HH:MM",' +
-            '    "day": 0,' +
-            '    "type": "work|break|meeting|personal|other",' +
-            '    "priority": "high|medium|low",' +
-            '    "isRecurring": false,' +
-            '    "duration": 60' +
-            '  }' +
-            ']' +
-            '\n\nReturn ONLY the JSON array, no other text.'
+          content: `Generate a weekly schedule based on the following preferences. Return ONLY a valid JSON object with a single property called "schedule" that contains an array of events with the specified structure.\n\n${userPrompt}`
         }
       ],
       temperature: 0.7,
-      response_format: { type: 'json_object' }
+      max_tokens: 2000
     });
 
+    console.log('OpenAI response:', JSON.stringify(response, null, 2));
+
+    // Extract the content and parse it as JSON
     const content = response.choices[0]?.message?.content;
     if (!content) {
       throw new Error('No content in OpenAI response');
     }
 
-    // Try to parse the response as JSON
-    let schedule;
+    let parsedContent;
     try {
-      const parsed = JSON.parse(content);
-      // Handle different possible response formats
-      if (Array.isArray(parsed)) {
-        schedule = parsed;
-      } else if (parsed?.schedule && Array.isArray(parsed.schedule)) {
-        schedule = parsed.schedule;
-      } else if (parsed?.events && Array.isArray(parsed.events)) {
-        schedule = parsed.events;
-      } else {
-        // If we can't find an array in the response, throw an error
-        throw new Error('Could not find schedule data in response');
-      }
+      parsedContent = JSON.parse(content);
     } catch (error) {
-      console.error('Error parsing OpenAI response:', error);
-      throw new Error('Failed to parse schedule from AI response');
+      console.error('Failed to parse OpenAI response:', content);
+      throw new Error('Invalid JSON response from OpenAI');
     }
 
-    // Validate and normalize the schedule
-    return schedule.map((event: any) => ({
+    // Extract the schedule array from the response
+    const schedule = parsedContent.schedule;
+    if (!Array.isArray(schedule)) {
+      console.error('Invalid schedule format from OpenAI:', parsedContent);
+      throw new Error('Invalid schedule format from OpenAI');
+    }
+
+    // Map the response to the ScheduleEvent interface
+    const events: ScheduleEvent[] = schedule.map((event: any) => ({
       id: event.id || `event-${Math.random().toString(36).substr(2, 9)}`,
       title: event.title || 'Untitled Event',
       description: event.description || '',
-      startTime: event.startTime || '09:00',
-      endTime: event.endTime || '10:00',
-      day: typeof event.day === 'number' ? Math.min(Math.max(0, event.day), 6) : 0,
+      startTime: event.startTime || '',
+      endTime: event.endTime || '',
+      day: typeof event.day === 'number' ? event.day : 0,
       type: ['work', 'break', 'meeting', 'personal', 'other'].includes(event.type) 
-        ? event.type 
+        ? event.type as 'work' | 'break' | 'meeting' | 'personal' | 'other'
         : 'other',
-      priority: ['high', 'medium', 'low'].includes(event.priority) 
-        ? event.priority 
-        : 'medium',
       isRecurring: Boolean(event.isRecurring),
-      duration: typeof event.duration === 'number' 
-        ? Math.max(5, Math.min(1440, event.duration)) // Clamp between 5min and 24h
-        : 60,
-      recurringPattern: event.recurringPattern || undefined
+      duration: typeof event.duration === 'number' ? event.duration : 1,
+      recurringPattern: event.recurringPattern
     }));
+
+    return events;
   } catch (error) {
     console.error('Error generating schedule:', error);
     throw new Error(`Failed to generate schedule: ${error instanceof Error ? error.message : 'Unknown error'}`);

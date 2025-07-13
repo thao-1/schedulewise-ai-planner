@@ -11,7 +11,7 @@ const config = {
   // Server Configuration
   port: parseInt(process.env.VITE_SERVER_PORT || '3001', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
-  clientUrl: process.env.VITE_CLIENT_URL || 'http://localhost:8080',
+  clientUrl: process.env.VITE_CLIENT_URL || 'http://localhost:8082',
   
   // OpenAI Configuration
   openai: {
@@ -41,14 +41,21 @@ const config = {
       const allowedOrigins = [
         'http://localhost:8080',
         'http://localhost:8081',
+        'http://localhost:8082',
         process.env.VITE_CLIENT_URL,
         process.env.CORS_ORIGIN
       ].filter(Boolean) as string[];
       
+      // For development, allow any localhost with any port
+      if (process.env.NODE_ENV === 'development' && 
+          (origin.includes('localhost:') || origin.includes('127.0.0.1:'))) {
+        return callback(null, true);
+      }
+      
+      // Check against the list of allowed origins
       if (allowedOrigins.some(allowedOrigin => 
         origin.startsWith(allowedOrigin) || 
-        origin === allowedOrigin ||
-        (process.env.NODE_ENV === 'development' && origin.includes('localhost'))
+        origin === allowedOrigin
       )) {
         callback(null, true);
       } else {

@@ -1,22 +1,14 @@
 // API function to generate a schedule
 import { type Request, type Response } from 'express';
-import openai, { type Preferences } from '../utils/openai.js';
-
-interface SchedulePreferences {
-  // Define the structure of preferences based on your frontend
-  [key: string]: any;
-  // Add user context to preferences
-  userId?: string;
-  userName?: string;
-  userEmail?: string;
-}
+import { type Preferences } from '../utils/openai.js';
+import openai from '../utils/openai.js';
 
 type AuthenticatedRequest = Request & { 
+  isAuthenticated: () => boolean;
   user?: {
-    id?: string;
+    id: string;
     displayName?: string;
     emails?: Array<{ value: string }>;
-    // Add other user properties as needed
   };
 };
 
@@ -25,17 +17,21 @@ export const generateScheduleHandler = async (
   res: Response
 ) => {
   try {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ error: 'Not authenticated' });
+    // Check authentication
+    if (!req.isAuthenticated || !req.isAuthenticated()) {
+      return res.status(401).json({ 
+        success: false,
+        error: 'Not authenticated' 
+      });
     }
 
-    const { preferences } = req.body as { preferences: SchedulePreferences };
+    const { preferences } = req.body as { preferences: Preferences };
     const userId = req.user?.id;
 
     if (!userId) {
       return res.status(401).json({
         success: false,
-        error: 'User not authenticated'
+        error: 'User ID not found in session'
       });
     }
 
@@ -48,22 +44,19 @@ export const generateScheduleHandler = async (
 
     console.log('Generating schedule with preferences:', JSON.stringify(preferences, null, 2));
     
-    // Include user context in the preferences
+    // Generate schedule with user context
     const schedule = await openai.generateSchedule({
       ...preferences,
       userId,
-      userName: req.user?.displayName || 'User',
+      userName: req.user?.displayName,
       userEmail: req.user?.emails?.[0]?.value
-    } as Preferences);
+    });
     
     // In a real app, you might want to save the generated schedule to a database here
     // await saveUserSchedule(userId, schedule);
     
-    res.json({
-      success: true,
-      schedule,
-      generatedAt: new Date().toISOString()
-    });
+    // Return the schedule directly as an array to match frontend expectations
+    res.json(schedule);
     
   } catch (error: any) {
     console.error('Error generating schedule:', error);

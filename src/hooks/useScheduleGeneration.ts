@@ -2,7 +2,7 @@
 import { useState, useCallback } from 'react';
 import { useToast } from "@/components/ui/use-toast";
 
-interface ScheduleEvent {
+export interface ScheduleEvent {
   day: number;
   hour: number;
   duration: number;
@@ -27,6 +27,13 @@ interface ScheduleGenerationParams {
   onError?: (error: Error) => void;
 }
 
+interface SyncResult {
+  success: boolean;
+  syncedCount: number;
+  failedCount: number;
+  total: number;
+}
+
 const useScheduleGeneration = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -35,29 +42,31 @@ const useScheduleGeneration = () => {
     async ({ preferences, onSuccess, onError }: ScheduleGenerationParams) => {
       setIsLoading(true);
       try {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const apiUrl = import.meta.env['VITE_API_URL'] || 'http://localhost:3001';
         const response = await fetch(`${apiUrl}/api/schedule/generate`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
+          credentials: 'include', // This is needed to include cookies with the request
           body: JSON.stringify({ preferences }),
         });
 
-        const result = await response.json();
-        console.log('Schedule Result:', result);
-
         if (!response.ok) {
-          throw new Error(result.error || 'Failed to generate schedule');
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to generate schedule');
         }
 
+        const schedule = await response.json();
+        console.log('Schedule Result:', schedule);
+
         // The API returns the schedule directly as an array
-        if (!Array.isArray(result)) {
+        if (!Array.isArray(schedule)) {
           throw new Error('Invalid schedule format received from API');
         }
 
         // Format the schedule to ensure it matches our expected format
-        const formattedSchedule = result.map((event: any) => ({
+        const formattedSchedule = schedule.map((event: any) => ({
           ...event,
           day: event.day ?? 0,
           hour: event.hour ?? 9,
@@ -90,7 +99,14 @@ const useScheduleGeneration = () => {
     [toast]
   );
 
-  const syncScheduleToGoogleCalendar = async (scheduleData: any[], accessToken: string, timezone: string) => {
+  const syncScheduleToGoogleCalendar = async (
+    scheduleData: ScheduleEvent[], 
+    accessToken: string, 
+    timezone: string = 'UTC'
+  ): Promise<SyncResult> => {
+    if (!accessToken) {
+      throw new Error('No access token provided for Google Calendar sync');
+    }
     console.log("syncScheduleToGoogleCalendar called with:", {
       scheduleDataLength: scheduleData?.length || 0,
       accessTokenExists: !!accessToken,
@@ -105,88 +121,135 @@ const useScheduleGeneration = () => {
         description: "Please generate a schedule first.",
         variant: "destructive"
       });
-      return false;
-    }
-
-    if (!accessToken) {
-      console.error("No access token provided");
-      toast({
-        title: "Authentication required",
-        description: "Please connect to Google Calendar first.",
-        variant: "destructive"
-      });
-      return false;
+      return {
+        success: false,
+        syncedCount: 0,
+        failedCount: 0,
+        total: 0
+      };
     }
 
     try {
       setIsLoading(true);
-      console.log("Calling Supabase Edge Function for Google Calendar sync");
+      console.log("Syncing schedule with Google Calendar");
 
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-      console.log("Supabase URL:", supabaseUrl);
-      console.log("Supabase Anon Key exists:", !!supabaseAnonKey);
-      console.log("Access token starts with:", accessToken.substring(0, 10) + "...");
-
-      // Prepare the request body
-      const requestBody = {
-        schedule: scheduleData,
-        timezone
-      };
-
-      console.log("Request body sample:", JSON.stringify(requestBody).substring(0, 200) + "...");
-
-      // Call the Supabase Edge Function
-      const response = await fetch(`${supabaseUrl}/functions/v1/sync-google-calendar`, {
-        method: 'POST',
+      // First, get the primary calendar ID
+      const calendarResponse = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary', {
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`,
-          'apikey': supabaseAnonKey || '',
-        },
-        body: JSON.stringify(requestBody),
+          'Content-Type': 'application/json'
+        }
       });
 
-      console.log("Response status:", response.status);
-
-      // Try to parse the response as JSON
-      let responseData;
-      try {
-        responseData = await response.json();
-        console.log("Response data:", responseData);
-      } catch (e) {
-        const textResponse = await response.text();
-        console.error("Failed to parse response as JSON:", textResponse);
-        throw new Error(`Failed to parse response: ${textResponse.substring(0, 100)}`);
+      if (!calendarResponse.ok) {
+        const error = await calendarResponse.json();
+        throw new Error(error.error?.message || 'Failed to access Google Calendar');
       }
 
-      if (!response.ok) {
-        throw new Error(`Failed to sync calendar: ${response.status} - ${responseData.error || 'Unknown error'}`);
-      }
+      // Process each event in the schedule
+      const eventPromises = scheduleData.map(async (event) => {
+        const eventStart = new Date();
+        eventStart.setDate(eventStart.getDate() + (event.day || 0));
+        eventStart.setHours(event.hour, 0, 0, 0);
+        
+        const eventEnd = new Date(eventStart);
+        eventEnd.setHours(eventStart.getHours() + (event.duration || 1));
 
-      toast({
-        title: "Schedule synced to Google Calendar",
-        description: responseData.message || "Your schedule has been successfully synced to your Google Calendar."
+        const calendarEvent = {
+          summary: event.title,
+          description: event.description || '',
+          start: {
+            dateTime: eventStart.toISOString(),
+            timeZone: timezone || 'UTC',
+          },
+          end: {
+            dateTime: eventEnd.toISOString(),
+            timeZone: timezone || 'UTC',
+          },
+          reminders: {
+            useDefault: false,
+            overrides: [
+              { method: 'popup', minutes: 30 },
+            ],
+          },
+        };
+
+        const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(calendarEvent),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          console.error('Failed to create event:', error);
+          throw new Error(`Failed to create event: ${error.error?.message || 'Unknown error'}`);
+        }
+
+        return response.json();
       });
-      return true;
+
+      // Execute all event creation promises in parallel
+      const results = await Promise.allSettled(eventPromises);
+      
+      // Check for any failed events
+      const failedEvents = results.filter(result => result.status === 'rejected');
+      const successfulEvents = results.filter(result => result.status === 'fulfilled');
+
+      if (failedEvents.length > 0) {
+        console.error(`Failed to create ${failedEvents.length} events`);
+        failedEvents.forEach((result: any) => {
+          console.error('Event creation failed:', result.reason);
+        });
+        
+        if (successfulEvents.length === 0) {
+          // All events failed
+          throw new Error('Failed to sync any events to Google Calendar');
+        }
+        
+        // Some events succeeded, some failed
+        toast({
+          title: `Successfully synced ${successfulEvents.length} events`,
+          description: `Failed to sync ${failedEvents.length} events. Check console for details.`,
+          variant: 'default',
+        });
+      } else {
+        // All events synced successfully
+        toast({
+          title: 'Success!',
+          description: `Successfully synced ${successfulEvents.length} events to Google Calendar`,
+          variant: 'default',
+        });
+      }
+
+      return {
+        success: true,
+        syncedCount: successfulEvents.length,
+        failedCount: failedEvents.length,
+        total: results.length,
+      };
     } catch (error: any) {
-      console.error('Error syncing to Google Calendar:', error);
+      console.error('Error syncing with Google Calendar:', error);
       toast({
-        title: "Error syncing to Google Calendar",
-        description: error.message || "Failed to sync schedule to Google Calendar. Please try again.",
-        variant: "destructive"
+        title: 'Error',
+        description: error.message || 'Failed to sync with Google Calendar',
+        variant: 'destructive',
       });
-      return false;
+      throw error;
     } finally {
       setIsLoading(false);
     }
+
+      // All sync operations complete
   };
 
   return {
     generateSchedule,
     isLoading,
-    syncScheduleToGoogleCalendar
+    syncScheduleToGoogleCalendar,
   };
 };
 
