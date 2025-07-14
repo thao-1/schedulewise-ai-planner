@@ -16,19 +16,19 @@ import {
   Award, 
   BarChart3 
 } from 'lucide-react';
-import { getEventColorVars } from '@/utils/eventColors';
+import { getEventColor } from '@/utils/eventColors';
+import type { ScheduleEvent, EventType } from '@/server/types/ScheduleTypes';
 
 const WeeklyScheduleOverview = () => {
   const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
   
-  // Event types for the dashboard
-  const eventTypes = [
+  const eventTypes: EventType[] = [
     'meeting',
     'work',
     'learning',
     'workout',
     'relaxation'
-  ] as const;
+  ];
 
   return (
     <div className="h-full flex flex-col bg-background">
@@ -57,17 +57,11 @@ const WeeklyScheduleOverview = () => {
           
           <div className="mt-2 flex space-x-1">
             {daysOfWeek.map((_, dayIndex) => {
-              // Cycle through event types for each day
               const eventType = eventTypes[dayIndex % eventTypes.length];
-              const colors = getEventColorVars(eventType);
               return (
                 <div 
                   key={dayIndex} 
-                  className="h-2 rounded-full flex-1 border"
-                  style={{
-                    backgroundColor: colors.bg,
-                    borderColor: colors.border,
-                  }}
+                  className={`h-2 rounded-full flex-1 ${getEventColor(eventType)}`}
                 />
               );
             })}
@@ -87,14 +81,21 @@ const WeeklyScheduleOverview = () => {
 };
 
 const Dashboard: React.FC = () => {
-  const [scheduleData, setScheduleData] = useState<any[]>([]);
-  const [stats, setStats] = useState([
+  const [scheduleData, setScheduleData] = useState<ScheduleEvent[]>([]);
+  const [stats, setStats] = useState<{ name: string; value: string; icon: React.ElementType; type: EventType }[]>([
     { name: 'Deep Work Hours', value: '0 hrs', icon: Clock, type: 'deep-work' },
     { name: 'Weekly Events', value: '0', icon: Calendar, type: 'meeting' },
     { name: 'Productivity Score', value: '0%', icon: BarChart3, type: 'work' },
     { name: 'Work-Life Balance', value: 'N/A', icon: Award, type: 'relaxation' },
   ]);
   
+  const workLifeBalanceData: { type: EventType; value: number }[] = [
+    { type: 'work', value: 40 },
+    { type: 'personal', value: 30 },
+    { type: 'learning', value: 20 },
+    { type: 'relaxation', value: 10 },
+  ];
+
   useEffect(() => {
     const fetchScheduleFromStorage = () => {
       try {
@@ -103,7 +104,6 @@ const Dashboard: React.FC = () => {
           const parsedSchedule = JSON.parse(savedSchedule);
           setScheduleData(parsedSchedule);
           
-          // Calculate metrics based on the schedule
           const deepWorkHours = parsedSchedule
             .filter((event: any) => event.type === 'deep-work')
             .reduce((total: number, event: any) => total + (event.duration || 0), 0);
@@ -122,13 +122,6 @@ const Dashboard: React.FC = () => {
 
     fetchScheduleFromStorage();
   }, []);
-
-  // Use the shared getEventColorVars utility
-  const getDashboardEventColor = (eventType: string) => {
-    return getEventColorVars(eventType);
-  };
-
-  // Remove the duplicate metrics calculation since we already calculate in fetchScheduleFromStorage
 
   return (
     <div className="space-y-8">
@@ -161,11 +154,7 @@ const Dashboard: React.FC = () => {
                     <h3 className="text-2xl font-bold">{stat.value}</h3>
                   </div>
                   <div 
-                    className="p-3 rounded-lg"
-                    style={{
-                      backgroundColor: getDashboardEventColor(stat.type).bg,
-                      color: getDashboardEventColor(stat.type).text
-                    }}
+                    className={`p-3 rounded-lg ${getEventColor(stat.type)}`}
                   >
                     <Icon className="h-6 w-6" />
                   </div>
@@ -191,7 +180,7 @@ const Dashboard: React.FC = () => {
               <div className="space-y-3">
                 {scheduleData
                   .filter(event => {
-                    const eventDate = new Date(event.startTime);
+                    const eventDate = new Date(event.startTime!);
                     const today = new Date();
                     return (
                       eventDate >= today && 
@@ -200,22 +189,16 @@ const Dashboard: React.FC = () => {
                       eventDate.getFullYear() === today.getFullYear()
                     );
                   })
-                  .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+                  .sort((a, b) => new Date(a.startTime!).getTime() - new Date(b.startTime!).getTime())
                   .slice(0, 5)
                   .map((event, index) => {
-                    const colors = getDashboardEventColor(event.type);
-                    const eventDate = new Date(event.startTime);
-                    const endTime = new Date(eventDate.getTime() + (event.duration * 60 * 1000));
+                    const eventDate = new Date(event.startTime!);
+                    const endTime = new Date(eventDate.getTime() + (event.duration * 60 * 60 * 1000));
                     
                     return (
                       <div 
                         key={index} 
-                        className={`p-3 rounded-md shadow-sm hover:shadow-md transition-all duration-200 border`}
-                        style={{
-                          backgroundColor: colors.bg,
-                          color: colors.text,
-                          borderColor: colors.border
-                        }}
+                        className={`p-3 rounded-md shadow-sm hover:shadow-md transition-all duration-200 border ${getEventColor(event.type)}`}
                       >
                         <div className="flex justify-between items-start">
                           <div>
@@ -227,10 +210,6 @@ const Dashboard: React.FC = () => {
                           </div>
                           <span 
                             className="text-xs px-2 py-1 rounded-full capitalize"
-                            style={{
-                              backgroundColor: `${colors.border}40`,
-                              color: colors.text
-                            }}
                           >
                             {event.type.replace('-', ' ')}
                           </span>
@@ -244,7 +223,7 @@ const Dashboard: React.FC = () => {
                     );
                   })}
                 {scheduleData.filter(event => {
-                  const eventDate = new Date(event.startTime);
+                  const eventDate = new Date(event.startTime!);
                   const today = new Date();
                   return (
                     eventDate >= today && 
@@ -278,15 +257,9 @@ const Dashboard: React.FC = () => {
         </CardHeader>
         <CardContent className="bg-card">
           <div className="grid gap-4 md:grid-cols-4 mb-6">
-            {[
-              { type: 'work', value: 40 },
-              { type: 'personal', value: 30 },
-              { type: 'learning', value: 20 },
-              { type: 'relaxation', value: 10 },
-            ].map((item, index) => {
-              const colors = getDashboardEventColor(item.type);
+            {workLifeBalanceData.map((item, index) => {
               return (
-                <Card key={index} className="relative overflow-hidden bg-card">
+                <Card key={index} className={`relative overflow-hidden bg-card ${getEventColor(item.type)}`}>
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-medium text-card-foreground">{item.type}</span>
@@ -296,7 +269,6 @@ const Dashboard: React.FC = () => {
                       <div 
                         className="h-2.5 rounded-full transition-all duration-500"
                         style={{
-                          backgroundColor: colors.bg,
                           width: `${item.value}%`
                         }}
                       />
@@ -304,10 +276,6 @@ const Dashboard: React.FC = () => {
                     <div className="flex items-center mt-2 text-sm">
                       <div 
                         className="w-3 h-3 rounded-full mr-2 border"
-                        style={{
-                          backgroundColor: colors.bg,
-                          borderColor: colors.border
-                        }}
                       />
                       <span className="capitalize text-card-foreground">{item.type}</span>
                       <span className="ml-auto font-medium text-card-foreground">{item.value}%</span>

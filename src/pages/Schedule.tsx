@@ -10,14 +10,14 @@ import { Calendar } from '@/components/ui/calendar';
 import { format, addDays, startOfWeek, isSameDay, parseISO, isWithinInterval } from 'date-fns';
 
 // Import shared event colors utility
-import { getEventColorVars, normalizeEventType } from '@/utils/eventColors';
+import { getEventColor } from '@/utils/eventColors';
 
 const Schedule = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
   
-  const [scheduleData, setScheduleData] = useState<Array<Omit<ScheduleEvent, 'startTime' | 'endTime'> & { startTime: string; endTime?: string }>>([]);
+  const [scheduleData, setScheduleData] = useState<ScheduleEvent[]>([]);
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(startOfWeek(new Date()));
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isLoading, setIsLoading] = useState(true);
@@ -137,19 +137,16 @@ const Schedule = () => {
     setSelectedDate(new Date());
   };
 
-  // Format time to h:mm a (e.g., 2:30 PM)
-  const formatTime = (dateTimeString: string) => {
-    try {
-      const date = new Date(dateTimeString);
-      if (isNaN(date.getTime())) {
-        console.error('Invalid date string:', dateTimeString);
-        return 'Invalid time';
-      }
-      return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    } catch (error) {
-      console.error('Error formatting time:', error);
-      return 'Invalid time';
-    }
+  const formatTime = (hour: number): string => {
+    // Handle edge cases
+    if (hour < 0) hour = 0;
+    if (hour >= 24) hour = hour % 24;
+
+    const hourPart = Math.floor(hour);
+    const minutePart = Math.round((hour - hourPart) * 60);
+    const period = hourPart >= 12 ? 'PM' : 'AM';
+    const hour12 = hourPart % 12 === 0 ? 12 : hourPart % 12;
+    return `${hour12}:${minutePart.toString().padStart(2, '0')} ${period}`;
   };
 
   // Get events for a specific day
@@ -188,21 +185,6 @@ const Schedule = () => {
     return events;
   };
 
-  // Debug log for event types
-  useEffect(() => {
-    if (scheduleData && scheduleData.length > 0) {
-      console.log('Schedule Data:', scheduleData);
-      console.log('Unique Raw Event Types:', [...new Set(scheduleData.map(e => e.type))]);
-      
-      // Log both original and normalized types with their colors
-      const uniqueTypes = [...new Set(scheduleData.map(e => e.type))];
-      uniqueTypes.forEach(type => {
-        const normalizedType = normalizeEventType(type);
-        const colors = getEventColorVars(type);
-        console.log(`Event type "${type}" (normalized to "${normalizedType}") colors:`, colors);
-      });
-    }
-  }, [scheduleData]);
 
   if (isLoading) {
     return (
@@ -259,33 +241,29 @@ const Schedule = () => {
             <div className="p-2 space-y-2 min-h-[200px] max-h-[60vh] overflow-y-auto">
               {dayEvents.length > 0 ? (
                 dayEvents.map((event, eventIndex) => {
-                  const colors = getEventColorVars(event.type);
-                  // Format time range
-                  const timeRange = event.endTime 
-                    ? `${formatTime(event.startTime)} - ${formatTime(event.endTime)}`
-                    : formatTime(event.startTime);
                   return (
-                    <div 
+                    <Card
                       key={eventIndex}
-                      className={`p-3 rounded-md mb-2 cursor-pointer hover:shadow-md transition-all duration-200 ${colors.bg} ${colors.border} ${colors.text}`}
-                      onClick={() => handleEventClick(event)}
+                      className={`${getEventColor(event.type)} border transition-all duration-200 hover:shadow-md`}
                     >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-semibold truncate">{event.title}</div>
-                          <div className="flex items-center text-xs mt-1">
-                            <Clock className="h-3 w-3 mr-1 flex-shrink-0" />
-                            <span className="truncate">{timeRange}</span>
+                      <CardContent className="p-4">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h3 className="font-medium text-lg">{event.title}</h3>
+                            <p className="text-sm text-gray-600">
+                              {formatTime(event.hour)} - {formatTime(event.hour + event.duration)}
+                            </p>
+                            {event.description && (
+                              <p className="mt-2 text-sm">{event.description}</p>
+                            )}
                           </div>
+                          <span className="px-2 py-1 text-xs rounded-full bg-white bg-opacity-50 capitalize">
+                            {event.type.replace('-', ' ')}
+                          </span>
                         </div>
-                      </div>
-                      {event.description && (
-                        <p className="text-xs mt-2 line-clamp-2 text-gray-700">
-                          {event.description}
-                        </p>
-                      )}
-                      </div>
-                    );
+                      </CardContent>
+                    </Card>
+                  );
                   })
                 ) : (
                   <p className="text-xs text-gray-500 text-center py-4">No events</p>
@@ -308,23 +286,28 @@ const Schedule = () => {
           <div className="space-y-3">
             {getEventsForDay(selectedDate).length > 0 ? (
               getEventsForDay(selectedDate).map((event, index) => {
-                const colors = getEventColorVars(event.type || 'other');
                 return (
-                  <div 
-                    key={index} 
-                    className={`p-4 rounded-lg border-l-4 ${colors.bg} ${colors.border} ${colors.text} cursor-pointer hover:shadow-md transition-shadow`}
-                    onClick={() => handleEventClick(event)}
+                  <Card
+                    key={index}
+                    className={`${getEventColor(event.type)} border transition-all duration-200 hover:shadow-md`}
                   >
-                    <div className="font-medium">{event.title}</div>
-                    <div className="flex items-center text-sm mt-1 opacity-90">
-                      <Clock className="h-4 w-4 mr-1" />
-                      {formatTime(event.startTime)}
-                      {event.endTime && ` - ${formatTime(event.endTime)}`}
-                    </div>
-                    {event.description && (
-                      <p className="text-sm mt-2 opacity-90">{event.description}</p>
-                    )}
-                  </div>
+                    <CardContent className="p-4">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="font-medium text-lg">{event.title}</h3>
+                          <p className="text-sm text-gray-600">
+                            {formatTime(event.hour)} - {formatTime(event.hour + event.duration)}
+                          </p>
+                          {event.description && (
+                            <p className="mt-2 text-sm">{event.description}</p>
+                          )}
+                        </div>
+                        <span className="px-2 py-1 text-xs rounded-full bg-white bg-opacity-50 capitalize">
+                          {event.type.replace('-', ' ')}
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
                 );
               })
             ) : (

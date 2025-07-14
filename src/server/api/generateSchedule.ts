@@ -512,9 +512,12 @@ async function generateSchedule(preferences: Preferences, userId: string = 'anon
         
         // Normalize event data with proper type handling
         const rawType = rawEvent?.type;
-        const eventType: EventType = (typeof rawType === 'string' && rawType.trim() !== '')
-          ? rawType.trim().toLowerCase() as EventType
-          : 'personal';
+        const validateEventType = (type: string): EventType => {
+          const validTypes: EventType[] = ['work', 'meeting', 'deep-work', 'workout', 'meals', 'break', 'personal', 'learning', 'relaxation', 'commute', 'sleep'];
+          return validTypes.includes(type as EventType) ? (type as EventType) : 'work';
+        };
+
+        const eventType: EventType = validateEventType(rawType || '');
           
         // Safely extract and convert day, hour, and duration with proper type checking
         const dayValue = rawEvent?.day !== undefined ? parseNumber(rawEvent.day, 0) : 0;
