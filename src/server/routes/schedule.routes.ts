@@ -18,7 +18,7 @@ router.post('/generate', generateScheduleHandler);
 
 // Get user's schedules (protected route - requires authentication)
 router.get('/', ensureAuthenticated, (req: AuthenticatedRequest, res: Response) => {
-  // In a real app, you would fetch schedules for the authenticated user
+  // In a real app, fetch schedules for the authenticated user
   res.json({ 
     message: 'List of user schedules',
     userId: req.user?.id,

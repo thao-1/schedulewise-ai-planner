@@ -1,8 +1,6 @@
 import { type Request, type Response } from 'express';
 import { type Preferences } from '../utils/openai.js';
-// Importing fetch for API calls to OpenAI
 import fetch from 'node-fetch';
-
 import { type ScheduleEvent, type ScheduleResponse, type EventType } from '../types/ScheduleTypes.js';
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -17,6 +15,262 @@ type AuthenticatedRequest = Request & {
     displayName?: string;
     emails?: Array<{ value: string }>;
   };
+}
+
+// Fallback schedule generator in case AI fails
+function generateFallbackSchedule(preferences: Preferences): ScheduleEvent[] {
+  console.log('Generating fallback schedule...');
+  
+  const fallbackSchedule: ScheduleEvent[] = [];
+  const workStartHour = preferences.workHours?.includes('9') ? 9 : 8;
+  const workEndHour = preferences.workHours?.includes('5') ? 17 : 18;
+  
+  // Generate schedule for each day (0 = Sunday, 1 = Monday, etc.)
+  for (let day = 0; day < 7; day++) {
+    const isWeekend = day === 0 || day === 6;
+    let eventId = 0;
+    
+    // Morning routine
+    fallbackSchedule.push({
+      id: `fallback-${day}-${eventId++}`,
+      title: 'Morning Routine',
+      day,
+      hour: 7,
+      duration: 1,
+      type: 'personal',
+      description: 'Wake up and morning preparation',
+      startTime: new Date().toISOString(),
+      endTime: new Date().toISOString()
+    });
+    
+    // Breakfast
+    fallbackSchedule.push({
+      id: `fallback-${day}-${eventId++}`,
+      title: 'Breakfast',
+      day,
+      hour: 8,
+      duration: 0.5,
+      type: 'meals',
+      description: 'Morning meal',
+      startTime: new Date().toISOString(),
+      endTime: new Date().toISOString()
+    });
+    
+    if (!isWeekend) {
+      // Work day schedule
+      fallbackSchedule.push({
+        id: `fallback-${day}-${eventId++}`,
+        title: 'Morning Deep Work',
+        day,
+        hour: workStartHour,
+        duration: 2,
+        type: 'work',
+        description: 'Focused work session',
+        startTime: new Date().toISOString(),
+        endTime: new Date().toISOString()
+      });
+      
+      fallbackSchedule.push({
+        id: `fallback-${day}-${eventId++}`,
+        title: 'Team Meeting',
+        day,
+        hour: workStartHour + 2,
+        duration: 1,
+        type: 'meeting',
+        description: 'Team collaboration',
+        startTime: new Date().toISOString(),
+        endTime: new Date().toISOString()
+      });
+      
+      fallbackSchedule.push({
+        id: `fallback-${day}-${eventId++}`,
+        title: 'Break',
+        day,
+        hour: workStartHour + 3,
+        duration: 0.25,
+        type: 'personal',
+        description: 'Short break',
+        startTime: new Date().toISOString(),
+        endTime: new Date().toISOString()
+      });
+      
+      fallbackSchedule.push({
+        id: `fallback-${day}-${eventId++}`,
+        title: 'Project Work',
+        day,
+        hour: workStartHour + 3.25,
+        duration: 2.75,
+        type: 'work',
+        description: 'Regular work tasks',
+        startTime: new Date().toISOString(),
+        endTime: new Date().toISOString()
+      });
+    } else {
+      // Weekend schedule
+      fallbackSchedule.push({
+        id: `fallback-${day}-${eventId++}`,
+        title: 'Weekend Learning',
+        day,
+        hour: 9,
+        duration: 2,
+        type: 'work',
+        description: 'Skill development',
+        startTime: new Date().toISOString(),
+        endTime: new Date().toISOString()
+      });
+      
+      fallbackSchedule.push({
+        id: `fallback-${day}-${eventId++}`,
+        title: 'Personal Projects',
+        day,
+        hour: 11,
+        duration: 2,
+        type: 'personal',
+        description: 'Personal tasks and errands',
+        startTime: new Date().toISOString(),
+        endTime: new Date().toISOString()
+      });
+    }
+    
+    // Universal daily activities
+    fallbackSchedule.push({
+      id: `fallback-${day}-${eventId++}`,
+      title: 'Lunch',
+      day,
+      hour: 12,
+      duration: 1,
+      type: 'meals',
+      description: 'Midday meal',
+      startTime: new Date().toISOString(),
+      endTime: new Date().toISOString()
+    });
+    
+    fallbackSchedule.push({
+      id: `fallback-${day}-${eventId++}`,
+      title: 'Workout',
+      day,
+      hour: preferences.workoutTime?.includes('morning') ? 7 : 17,
+      duration: 1,
+      type: 'workout',
+      description: 'Exercise session',
+      startTime: new Date().toISOString(),
+      endTime: new Date().toISOString()
+    });
+    
+    fallbackSchedule.push({
+      id: `fallback-${day}-${eventId++}`,
+      title: 'Dinner',
+      day,
+      hour: 18,
+      duration: 1,
+      type: 'meals',
+      description: 'Evening meal',
+      startTime: new Date().toISOString(),
+      endTime: new Date().toISOString()
+    });
+    
+    fallbackSchedule.push({
+      id: `fallback-${day}-${eventId++}`,
+      title: 'Evening Relaxation',
+      day,
+      hour: 19,
+      duration: 2,
+      type: 'personal',
+      description: 'Wind down time',
+      startTime: new Date().toISOString(),
+      endTime: new Date().toISOString()
+    });
+    
+    fallbackSchedule.push({
+      id: `fallback-${day}-${eventId++}`,
+      title: 'Sleep',
+      day,
+      hour: 22,
+      duration: 8,
+      type: 'sleep',
+      description: 'Night rest',
+      startTime: new Date().toISOString(),
+      endTime: new Date().toISOString()
+    });
+  }
+  
+  return fallbackSchedule;
+}
+
+// Improved JSON parsing with multiple fallback strategies
+function parseAIResponse(content: string): any {
+  console.log('Attempting to parse AI response...');
+  console.log('Raw content length:', content.length);
+  console.log('First 200 chars:', content.substring(0, 200));
+  
+  // Strategy 1: Direct JSON parse
+  try {
+    const parsed = JSON.parse(content);
+    console.log('✓ Direct JSON parse successful');
+    return parsed;
+  } catch (error) {
+    console.log('✗ Direct JSON parse failed:', error instanceof Error ? error.message : String(error));
+  }
+  
+  // Strategy 2: Extract JSON from code blocks
+  const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  if (codeBlockMatch) {
+    try {
+      const parsed = JSON.parse(codeBlockMatch[1]);
+      console.log('✓ Code block extraction successful');
+      return parsed;
+    } catch (error) {
+      console.log('✗ Code block extraction failed:', error instanceof Error ? error.message : String(error));
+    }
+  }
+  
+  // Strategy 3: Find JSON object boundaries
+  const jsonStart = content.indexOf('{');
+  const jsonEnd = content.lastIndexOf('}');
+  
+  if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+    try {
+      const jsonString = content.substring(jsonStart, jsonEnd + 1);
+      const parsed = JSON.parse(jsonString);
+      console.log('✓ JSON boundary extraction successful');
+      return parsed;
+    } catch (error) {
+      console.log('✗ JSON boundary extraction failed:', error instanceof Error ? error.message : String(error));
+    }
+  }
+  
+  // Strategy 4: Clean and fix common JSON issues
+  try {
+    let cleanContent = content
+      .replace(/```json\s*|\s*```/g, '') // Remove code blocks
+      .replace(/^\s*[\r\n]+|[\r\n]+\s*$/g, '') // Trim whitespace
+      .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":') // Quote keys
+      .replace(/:\s*'([^']*)'/g, ':"$1"') // Replace single quotes
+      .replace(/,\s*([}\]])/g, '$1') // Remove trailing commas
+      .replace(/\n\s*/g, ' ') // Remove newlines
+      .replace(/\s+/g, ' ') // Normalize spaces
+      .trim();
+    
+    const parsed = JSON.parse(cleanContent);
+    console.log('✓ JSON cleaning successful');
+    return parsed;
+  } catch (error) {
+    console.log('✗ JSON cleaning failed:', error instanceof Error ? error.message : String(error));
+  }
+  
+  // Strategy 5: Extract just the schedule array
+  const scheduleMatch = content.match(/"schedule"\s*:\s*(\[[\s\S]*?\])/);
+  if (scheduleMatch) {
+    try {
+      const scheduleArray = JSON.parse(scheduleMatch[1]);
+      console.log('✓ Schedule array extraction successful');
+      return { schedule: scheduleArray };
+    } catch (error) {
+      console.log('✗ Schedule array extraction failed:', error instanceof Error ? error.message : String(error));
+    }
+  }
+  
+  throw new Error('All JSON parsing strategies failed');
 }
 
 export const generateScheduleHandler = async (
@@ -91,98 +345,65 @@ export const generateScheduleHandler = async (
 };
 
 /**
- * Generates a schedule based on user preferences using OpenAI
- * @param preferences - User preferences for schedule generation
- * @param _userId - ID of the user generating the schedule
- * @returns Generated schedule
+ * Generate a weekly schedule using OpenAI's API
  */
-async function generateSchedule(preferences: Preferences, _userId: string = 'anonymous'): Promise<ScheduleResponse> {
+async function generateSchedule(preferences: Preferences, userId: string = 'anonymous'): Promise<ScheduleResponse> {
+  console.log(`Generating schedule for user ${userId}`);
+  
+  // Validate preferences
+  if (!preferences) {
+    const error = 'Preferences are required to generate a schedule';
+    console.error(error);
+    return {
+      success: false,
+      error,
+      message: 'Please provide your preferences to generate a schedule',
+      data: []
+    };
+  }
+  
+  // Create system prompt
+  const systemPrompt = `You are an AI scheduling assistant. Your task is to create a detailed 7-day schedule as a JSON object.
+
+  Strict Rules:
+  1.  JSON Output Only: The entire response must be a single, valid JSON object. Do not include any text, explanations, or code blocks before or after the JSON.
+  2.  Schedule Array: The JSON object must contain a single key, "schedule", which is an array of event objects.
+  3.  Event Object Structure: Each event object in the "schedule" array must have the following properties:
+      - title: A string describing the event.
+      - day: An integer from 0 (Sunday) to 6 (Saturday).
+      - hour: A number from 0 to 23 representing the start hour.
+      - duration: A number in hours (e.g., 1.5 for 90 minutes).
+      - type: A string that must be one of the following exact values: 'work', 'meeting', 'personal', 'workout', 'sleep', 'breakfast', 'lunch', 'dinner', 'deep-work', 'learning', 'relaxation'.
+      - description: A brief string describing the event.
+  4.  Event Type Enforcement:
+      - For all meals, use the specific types: 'breakfast', 'lunch', or 'dinner'.
+      - Do not use the generic 'meals' type.
+      - Do not create any new event types. Only use the types listed above.
+  5.  Schedule Content:
+      - Generate 8-12 events per day.
+      - Create a balanced schedule that includes work, personal time, meals, and breaks.
+      - Ensure there are no overlapping events.`;
+  
+  // Create user prompt with preferences
+  // Handle optional properties with defaults
+  const workHours = preferences.workHours || '9 AM - 5 PM';
+  const workoutTime = preferences.workoutTime || 'evening';
+  const meetingPreference = preferences.meetingPreference || 'afternoons';
+  const personalActivities = Array.isArray(preferences.personalActivities) 
+    ? preferences.personalActivities.join(', ')
+    : 'reading, hobbies';
+  
+  const userPrompt = `Create a weekly schedule with these preferences:
+  - Work hours: ${workHours}
+  - Workout time: ${workoutTime}
+  - Meeting preference: ${meetingPreference}
+  - Personal activities: ${personalActivities}
+  
+  Return ONLY a valid JSON object with a 'schedule' array of events.`;
+  
   try {
-    if (!OPENAI_API_KEY) {
-      console.error('OpenAI API key is not configured');
-      throw new Error('OpenAI API key is not configured. Please check your environment variables.');
-    }
+    console.log('Sending request to OpenAI API...');
     
-    if (!preferences) {
-      throw new Error('Preferences are required');
-    }
-
-    console.log("Sending request to OpenAI with preferences:", JSON.stringify(preferences, null, 2));
-    console.log("OpenAI API Key exists:", !!OPENAI_API_KEY);
-
-    const systemPrompt = `You are an AI scheduler that creates detailed weekly schedules. Follow these steps:
-
-1. FIRST, analyze the user's preferences and plan the schedule structure
-2. THEN, create a schedule using the EXACT event types listed below
-3. FINALLY, format the response as valid JSON
-
-EVENT TYPES (USE THESE EXACT STRINGS):
-- 'work': Regular work tasks
-- 'deep-work': Focused work sessions
-- 'meeting': Team or client meetings
-- 'workout': Exercise time
-- 'breakfast': Morning meal
-- 'lunch': Midday meal
-- 'dinner': Evening meal
-- 'break': Short breaks (15-30 min)
-- 'personal': Personal errands
-- 'learning': Skill development
-- 'relaxation': Leisure time
-- 'commute': Travel time
-- 'sleep': Night sleep
-
-IMPORTANT:
-- NEVER use 'other' or 'meals' as event types
-- ALWAYS use the exact type strings above
-- Include at least 8 different event types
-- Format response as valid JSON with double quotes`;
-
-    const currentDate = new Date();
-    const userPrompt = `Create a 7-day schedule starting ${currentDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.
-
-PREFERENCES:
-- Work Hours: ${preferences.workHours || '9 AM - 5 PM'}
-- Deep Work: ${preferences.deepWorkHours || 2}h/day
-- Activities: ${preferences.personalActivities?.join(', ') || 'None'}
-- Workout: ${preferences.workoutTime || 'Not specified'}
-- Meetings: ${preferences.meetingPreference || 'Flexible'}
-
-RULES:
-1. For EACH day, include these activities with EXACT types:
-   - 3 meals: 'breakfast', 'lunch', 'dinner'
-   - Work: 'work' (4-6h) + 'deep-work' (1-2h)
-   - Breaks: 'break' (15min every 2h)
-   - Exercise: 'workout' (30-60min)
-   - Personal: 'personal' or 'learning' or 'relaxation' (1-2h)
-   - Sleep: 'sleep' (7-9h)
-   - Commute: 'commute' if needed
-   - Meetings: 'meeting' as needed
-
-2. NEVER use: 'other' or 'meals'
-3. ALWAYS use the exact type strings provided
-4. Vary activities to use at least 8 different types per day
-
-SAMPLE DAY (as reference only):
-{
-  "schedule": [
-    {"title":"Morning Routine","day":1,"hour":7,"duration":1,"type":"personal"},
-    {"title":"Breakfast","day":1,"hour":8,"duration":0.5,"type":"breakfast"},
-    {"title":"Deep Work","day":1,"hour":9,"duration":2,"type":"deep-work"},
-    {"title":"Team Standup","day":1,"hour":11,"duration":0.5,"type":"meeting"},
-    {"title":"Lunch Break","day":1,"hour":12,"duration":1,"type":"lunch"},
-    {"title":"Project Work","day":1,"hour":13,"duration":3,"type":"work"},
-    {"title":"Quick Break","day":1,"hour":15,"duration":0.25,"type":"break"},
-    {"title":"Gym Session","day":1,"hour":17,"duration":1,"type":"workout"},
-    {"title":"Dinner","day":1,"hour":18.5,"duration":0.75,"type":"dinner"},
-    {"title":"Reading","day":1,"hour":19.5,"duration":1,"type":"learning"},
-    {"title":"Wind Down","day":1,"hour":21,"duration":1,"type":"relaxation"},
-    {"title":"Sleep","day":1,"hour":22,"duration":8,"type":"sleep"}
-  ]
-}
-
-IMPORTANT: Return ONLY valid JSON with the schedule.`;
-
-    // Make API call to OpenAI
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -190,251 +411,188 @@ IMPORTANT: Return ONLY valid JSON with the schedule.`;
         'Authorization': `Bearer ${OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'gpt-4',
+        model: 'gpt-3.5-turbo',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
-        temperature: 0.7
+        temperature: 0.3, // Lower temperature for more consistent results
+        max_tokens: 4000, // Increased to ensure complete response
       })
     });
-
+    
     if (!response.ok) {
-      const errorData = await response.json();
-      console.error('OpenAI API error:', errorData);
-      throw new Error(`OpenAI API error: ${errorData.error?.message || 'Unknown error'}`);
+      const errorData = await response.json().catch(() => ({}));
+      const errorMessage = `OpenAI API error: ${response.status} ${response.statusText} - ${JSON.stringify(errorData)}`;
+      console.error(errorMessage);
+      
+      // Return fallback schedule on API error
+      console.log('Using fallback schedule due to API error');
+      const fallbackSchedule = generateFallbackSchedule(preferences);
+      return {
+        success: true,
+        message: 'Generated fallback schedule due to API error',
+        data: fallbackSchedule
+      };
     }
-
+    
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content;
     
     if (!content) {
-      throw new Error('No content in AI response');
+      throw new Error('No content in response from OpenAI API');
     }
-
-    let parsedContent: any;
     
-    // First, try to parse the content as is
+    console.log('Received response from OpenAI API');
+    console.log('Response length:', content.length);
+    
+    // Parse the AI response with multiple fallback strategies
+    let parsedResponse;
     try {
-      parsedContent = JSON.parse(content);
-    } catch (initialError) {
-      console.log('Initial JSON parse failed, trying to extract JSON from content');
-      
-      // Try to extract JSON from markdown code block
-      const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-      
-      if (jsonMatch && jsonMatch[1]) {
-        try {
-          // Clean up the JSON content
-          const cleanedContent = jsonMatch[1]
-            .replace(/^\s*[\r\n]+/g, '') // Remove empty lines at start
-            .replace(/[\r\n]+$/g, '') // Remove empty lines at end
-            .replace(/[\r\n]+/g, ' ') // Replace newlines with spaces
-            .replace(/,\s*}/g, '}') // Remove trailing commas
-            .replace(/,\s*]/g, ']') // Remove trailing commas in arrays
-            .replace(/([\w]+)(?=\s*:)/g, '"$1"') // Add quotes around unquoted keys
-            .replace(/:\s*'([^']*)'/g, ':"$1"') // Replace single quotes with double quotes
-            .replace(/:\s*([^\s{\[\]},]+)(?=\s*[,\]}])/g, ':"$1"') // Add quotes around unquoted values
-            .replace(/\s+/g, ' ') // Normalize spaces
-            .trim(); // Remove any leading/trailing spaces
-          
-          parsedContent = JSON.parse(cleanedContent);
-        } catch (cleanError) {
-          console.error('Error parsing cleaned JSON content:', cleanError);
-          throw new Error('Failed to parse cleaned JSON content');
-        }
-      } else {
-        // If no code block, try to parse the entire content as JSON
-        try {
-          parsedContent = JSON.parse(content);
-        } catch (jsonError) {
-          console.error('Error parsing raw JSON content:', jsonError);
-          
-          // Try to find JSON object/array in the content
-          const jsonObjectMatch = content.match(/\{[\s\S]*\}/);
-          const jsonArrayMatch = content.match(/\[[\s\S]*\]/);
-          
-          try {
-            if (jsonObjectMatch) {
-              parsedContent = JSON.parse(jsonObjectMatch[0]);
-            } else if (jsonArrayMatch) {
-              parsedContent = { schedule: JSON.parse(jsonArrayMatch[0]) };
-            } else {
-              throw new Error('No valid JSON found in response');
-            }
-          } catch (fallbackError) {
-            console.error('Fallback JSON parsing failed:', fallbackError);
-            throw new Error('Failed to parse JSON content after multiple attempts');
-          }
-        }
-      }
-    }
-    
-    if (!parsedContent) {
-      console.error('No valid JSON content could be extracted from:', content.substring(0, 500) + '...');
-      throw new Error('No valid JSON content could be extracted from the AI response');
-    }
-  
-    // Validate the parsed content
-    if (!parsedContent || typeof parsedContent !== 'object') {
-      console.error('Invalid response format from OpenAI:', parsedContent);
-      throw new Error('The AI response format is invalid.');
-    }
-
-    // Check if we have a schedule array in the response
-    if (!('schedule' in parsedContent)) {
-      console.error('Missing schedule array in response:', parsedContent);
-      throw new Error('The AI response is missing the schedule array.');
-    }
-
-    // Ensure the schedule is an array
-    if (!Array.isArray(parsedContent.schedule)) {
-      console.error('Schedule is not an array:', parsedContent.schedule);
-      throw new Error('The schedule format is invalid. Expected an array of events.');
-    }
-
-    // Log the number of events received for debugging
-    console.log(`Received ${parsedContent.schedule.length} events in the schedule`);
-
-    // Check for required event types
-    const requiredTypes = ['work', 'meeting', 'breakfast', 'lunch', 'dinner', 'sleep'];
-    const recommendedTypes = ['deep-work', 'workout', 'break', 'personal', 'learning', 'relaxation', 'commute'];
-    
-    const foundTypes = new Set<string>();
-    const allEvents = parsedContent.schedule as ScheduleEvent[];
-    
-    // Log first few events for debugging
-    if (allEvents.length > 0) {
-      console.log('First few events:', allEvents.slice(0, 3));
-    }
-    
-    allEvents.forEach((event, index) => {
-      if (!event.type) {
-        console.error(`Event at index ${index} is missing type:`, event);
-      } else {
-        foundTypes.add(event.type);
-      }
-    });
-
-    // Log all found types for debugging
-    console.log('Found event types:', Array.from(foundTypes).join(', '));
-
-    // Check for missing required types
-    const missingRequiredTypes = requiredTypes.filter(type => !foundTypes.has(type));
-    if (missingRequiredTypes.length > 0) {
-      console.warn(`Missing required event types: ${missingRequiredTypes.join(', ')}`);
-      // Don't throw an error, just log a warning
-    }
-
-    // Check for recommended types
-    const missingRecommendedTypes = recommendedTypes.filter(type => !foundTypes.has(type));
-    if (missingRecommendedTypes.length > 0) {
-      console.log(`Consider adding these recommended event types: ${missingRecommendedTypes.join(', ')}`);
-    }
-
-    const schedule = parsedContent.schedule;
-    
-    // Validate each event in the schedule
-    const validatedSchedule: ScheduleEvent[] = schedule.map((event: any, index: number) => {
-      if (!event || typeof event !== 'object') {
-        throw new Error(`Event at index ${index} is not a valid object`);
-      }
-
-      const requiredFields = ['title', 'day', 'hour', 'duration', 'type'];
-      const missingFields = requiredFields.filter(field => event[field] === undefined);
-      
-      if (missingFields.length > 0) {
-        throw new Error(`Event at index ${index} is missing required fields: ${missingFields.join(', ')}`);
-      }
-
-      // Type validation
-      if (typeof event.title !== 'string') {
-        throw new Error(`Event title at index ${index} must be a string`);
-      }
-      
-      if (typeof event.day !== 'number' || event.day < 0 || event.day > 6) {
-        throw new Error(`Event day at index ${index} must be a number between 0 and 6`);
-      }
-      
-      // Validate hour is a number and within valid range
-      if (typeof event.hour !== 'number' || isNaN(event.hour) || event.hour < 0 || event.hour > 23.75) {
-        console.error(`Invalid hour value at index ${index}:`, event.hour);
-        throw new Error(`Event hour at index ${index} must be a number between 0 and 23.75`);
-      }
-      
-      // Ensure hour is in 15-minute increments (0, 0.25, 0.5, 0.75)
-      const minutes = (event.hour % 1) * 60;
-      if (minutes % 15 !== 0) {
-        console.warn(`Hour value at index ${index} is not in 15-minute increments, rounding:`, event.hour);
-        event.hour = Math.round(event.hour * 4) / 4; // Round to nearest 15 minutes
-      }
-      
-      if (typeof event.duration !== 'number' || event.duration <= 0) {
-        throw new Error(`Event duration at index ${index} must be a positive number`);
-      }
-      
-      // Use the EventType from ScheduleTypes to ensure type safety
-      const validTypes: EventType[] = [
-        'work', 'meeting', 'deep-work', 'workout', 'breakfast', 'lunch', 
-        'dinner', 'meals', 'break', 'personal', 'learning', 'relaxation', 
-        'commute', 'sleep', 'other'
-      ];
-      if (!validTypes.includes(event.type)) {
-        throw new Error(`Event type at index ${index} is not valid. Must be one of: ${validTypes.join(', ')}`);
-      }
-      
-      // Create a date object for the event (using a fixed date as the base)
-      const eventDate = new Date();
-      eventDate.setDate(eventDate.getDate() + event.day);
-      eventDate.setHours(Math.floor(event.hour), Math.round((event.hour % 1) * 60), 0, 0);
-      
-      // Format the time as ISO string
-      const startTime = eventDate.toISOString();
-      
-      // Calculate end time based on duration
-      const endDate = new Date(eventDate);
-      endDate.setMinutes(endDate.getMinutes() + (event.duration * 60));
-      const endTime = endDate.toISOString();
-      
-      // Return the validated event with startTime and endTime
+      parsedResponse = parseAIResponse(content);
+      console.log('Successfully parsed AI response');
+    } catch (parseError) {
+      console.error('Failed to parse AI response:', parseError);
+      console.log('Using fallback schedule due to parsing error');
+      const fallbackSchedule = generateFallbackSchedule(preferences);
       return {
-        id: `event-${index}-${Date.now()}`,
-        title: event.title || 'Untitled Event',
-        day: typeof event.day === 'number' ? event.day : 0,
-        hour: typeof event.hour === 'number' ? event.hour : 9,
-        duration: typeof event.duration === 'number' ? event.duration : 1,
-        type: event.type || 'other',
-        description: event.description || '',
-        startTime: startTime,
-        endTime: endTime
+        success: true,
+        message: 'Generated fallback schedule due to parsing error',
+        data: fallbackSchedule
       };
-    });
-
-    // Log the final schedule for debugging
-    console.log(`Returning ${validatedSchedule.length} validated events`);
-    if (validatedSchedule.length > 0) {
-      console.log('First validated event:', validatedSchedule[0]);
     }
+    
+    // Extract schedule from parsed response
+    const schedule = Array.isArray(parsedResponse?.schedule) ? parsedResponse.schedule : [];
+    
+    if (schedule.length === 0) {
+      console.log('No schedule found in response, using fallback');
+      const fallbackSchedule = generateFallbackSchedule(preferences);
+      return {
+        success: true,
+        message: 'Generated fallback schedule (no valid schedule in response)',
+        data: fallbackSchedule
+      };
+    }
+    
+    // Type guard to check if an object is a valid event
+    const isValidEvent = (obj: any): obj is Partial<ScheduleEvent> => {
+      return obj && typeof obj === 'object';
+    };
+    
+    // Validate and normalize schedule events
+    const validatedEvents: ScheduleEvent[] = [];
+    const seenIds = new Set<string>();
+    
+    for (const rawEvent of schedule) {
+      // Skip invalid events
+      if (!isValidEvent(rawEvent)) continue;
+      
+      try {
+        // At this point, rawEvent is guaranteed to be an object due to the type guard
+        
+        // Helper function to safely parse string or number to number with default
+        const parseNumber = (value: unknown, defaultValue: number): number => {
+          if (value === undefined || value === null) return defaultValue;
+          if (typeof value === 'number') return value;
+          if (typeof value === 'string') {
+            const trimmed = value.trim();
+            if (trimmed === '') return defaultValue;
+            const parsed = Number(trimmed);
+            return isNaN(parsed) ? defaultValue : parsed;
+          }
+          return defaultValue;
+        };
+        
+        // Helper function to safely get a string property with a default value
+        const getString = (obj: any, prop: string, defaultValue: string): string => {
+          const value = obj?.[prop];
+          return typeof value === 'string' ? value.trim() : defaultValue;
+        };
+        
+        // Normalize event data with proper type handling
+        const rawType = rawEvent?.type;
+        const eventType: EventType = (typeof rawType === 'string' && rawType.trim() !== '')
+          ? rawType.trim().toLowerCase() as EventType
+          : 'personal';
+          
+        // Safely extract and convert day, hour, and duration with proper type checking
+        const dayValue = rawEvent?.day !== undefined ? parseNumber(rawEvent.day, 0) : 0;
+        const hourValue = rawEvent?.hour !== undefined ? parseNumber(rawEvent.hour, 9) : 9;
+        const durationValue = rawEvent?.duration !== undefined ? parseNumber(rawEvent.duration, 1) : 1;
+        
+        const eventDay = Math.min(6, Math.max(0, dayValue)); // Clamp to 0-6
+        const eventHour = Math.min(23, Math.max(0, hourValue)); // Clamp to 0-23
+        const eventDuration = Math.max(0.25, Math.min(24, durationValue)); // Clamp to 0.25-24
+        
+        // Ensure title and description are strings with proper type checking
+        const eventTitle = getString(rawEvent, 'title', 'Untitled Event');
+        const eventDescription = getString(rawEvent, 'description', '');
+        
+        const now = new Date();
+        const today = now.getDay();
+        const dayOffset = eventDay - today;
+        
+        const startDate = new Date(now.setDate(now.getDate() + dayOffset));
+        startDate.setHours(eventHour, (eventHour % 1) * 60, 0, 0);
 
-    // Get unique event types for the response
-    const eventTypes = Array.from(new Set(validatedSchedule.map(e => e.type)));
-    console.log('Final event types:', eventTypes.join(', '));
+        const endDate = new Date(startDate.getTime() + eventDuration * 60 * 60 * 1000);
 
+        let eventId = `event-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        
+        // Ensure unique ID
+        while (seenIds.has(eventId)) {
+          eventId = `${eventId}-${Math.random().toString(36).substr(2, 4)}`;
+        }
+        seenIds.add(eventId);
+
+        const normalizedEvent: ScheduleEvent = {
+          id: eventId,
+          title: eventTitle,
+          day: eventDay,
+          hour: eventHour,
+          duration: eventDuration,
+          type: eventType,
+          description: eventDescription,
+          startTime: startDate.toISOString(),
+          endTime: endDate.toISOString()
+        };
+        
+        validatedEvents.push(normalizedEvent);
+      } catch (error) {
+        console.warn('Skipping invalid event:', event, error);
+      }
+    }
+    
+    if (validatedEvents.length === 0) {
+      console.log('No valid events after validation, using fallback');
+      const fallbackSchedule = generateFallbackSchedule(preferences);
+      return {
+        success: true,
+        message: 'Generated fallback schedule (no valid events after validation)',
+        data: fallbackSchedule
+      };
+    }
+    
+    console.log(`Successfully generated ${validatedEvents.length} schedule events`);
     return {
       success: true,
-      data: validatedSchedule,
-      message: 'Schedule generated successfully',
-      eventTypes: eventTypes
+      message: 'Successfully generated schedule',
+      data: validatedEvents
     };
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    console.error('Unexpected error in generateSchedule:', errorMessage);
     
+  } catch (error) {
+    console.error('Error in generateSchedule:', error);
+    
+    // Return fallback schedule on any error
+    console.log('Using fallback schedule due to error');
+    const fallbackSchedule = generateFallbackSchedule(preferences);
     return {
-      success: false,
-      error: errorMessage,
-      message: 'Failed to generate schedule. Please try again.',
-      data: []
+      success: true,
+      message: 'Generated fallback schedule due to error',
+      data: fallbackSchedule
     };
   }
 }
+
+

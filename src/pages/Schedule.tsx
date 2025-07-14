@@ -10,7 +10,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { format, addDays, startOfWeek, isSameDay, parseISO, isWithinInterval } from 'date-fns';
 
 // Import shared event colors utility
-import { getEventColorVars } from '@/utils/eventColors';
+import { getEventColorVars, normalizeEventType } from '@/utils/eventColors';
 
 const Schedule = () => {
   const location = useLocation();
@@ -93,7 +93,9 @@ const Schedule = () => {
   }, [location.state, toast]);
 
   const handleDateSelect = (date: Date | undefined) => {
-    setSelectedDate(date);
+    if (date) {
+      setSelectedDate(date);
+    }
   };
 
   const handleSyncToGoogle = async () => {
@@ -155,43 +157,34 @@ const Schedule = () => {
     if (!scheduleData || scheduleData.length === 0) {
       return [];
     }
-    
+
     const dayOfWeek = day.getDay(); // 0 = Sunday, 1 = Monday, etc.
-    
+
     const events = scheduleData
-      .filter(event => {
-        // First check if the event is for this day of the week
-        if (event.day !== dayOfWeek) {
-          return false;
-        }
+      .filter(event => event.day === dayOfWeek)
+      .map(event => {
+        // Create a mutable copy to avoid side effects
+        const newEvent = { ...event };
         
-        // Then verify the date is valid
-        if (!event.startTime) {
-          console.warn('Event missing startTime:', event);
-          return false;
-        }
-        
-        try {
-          const eventDate = new Date(event.startTime);
-          if (isNaN(eventDate.getTime())) {
-            console.warn('Invalid date for event:', event);
-            return false;
-          }
+        if (newEvent.hour !== undefined) {
+          const eventDate = new Date(day);
+          eventDate.setHours(Math.floor(newEvent.hour), (newEvent.hour % 1) * 60, 0, 0);
+          newEvent.startTime = eventDate.toISOString();
           
-          // Check if the event date matches the target day
-          return isSameDay(eventDate, day);
-        } catch (error) {
-          console.error('Error processing event:', event, error);
-          return false;
+          if (newEvent.duration) {
+            const endDate = new Date(eventDate.getTime() + newEvent.duration * 60 * 60 * 1000);
+            newEvent.endTime = endDate.toISOString();
+          }
         }
+        return newEvent;
       })
       .sort((a, b) => {
         // Sort by start time
-        const timeA = a.hour * 60 + ((a.hour % 1) * 60);
-        const timeB = b.hour * 60 + ((b.hour % 1) * 60);
+        const timeA = a.hour !== undefined ? a.hour * 60 + ((a.hour % 1) * 60) : 0;
+        const timeB = b.hour !== undefined ? b.hour * 60 + ((b.hour % 1) * 60) : 0;
         return timeA - timeB;
       });
-    
+
     return events;
   };
 
@@ -199,12 +192,14 @@ const Schedule = () => {
   useEffect(() => {
     if (scheduleData && scheduleData.length > 0) {
       console.log('Schedule Data:', scheduleData);
-      console.log('Unique Event Types:', [...new Set(scheduleData.map(e => e.type))]);
-      // Log the computed colors for each event type
+      console.log('Unique Raw Event Types:', [...new Set(scheduleData.map(e => e.type))]);
+      
+      // Log both original and normalized types with their colors
       const uniqueTypes = [...new Set(scheduleData.map(e => e.type))];
       uniqueTypes.forEach(type => {
+        const normalizedType = normalizeEventType(type);
         const colors = getEventColorVars(type);
-        console.log(`Event type "${type}" colors:`, colors);
+        console.log(`Event type "${type}" (normalized to "${normalizedType}") colors:`, colors);
       });
     }
   }, [scheduleData]);
